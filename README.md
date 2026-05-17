@@ -421,4 +421,4 @@ Contributors must agree to the CLA terms in [CONTRIBUTING.md](CONTRIBUTING.md).
 ## Contact
 
 Issues / questions: open a GitHub issue.
-Commercial-license inquiries: `computational@cellogentherapeutics.com`.
+Commercial-license inquiries: `shantanukumar065@gmail.com`.
