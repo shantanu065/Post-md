@@ -4,7 +4,8 @@ from __future__ import annotations
 
 import numpy as np
 
-from post_md.analysis.alignment import kabsch, rmsd as _rmsd_pointwise
+from post_md.analysis.alignment import kabsch
+from post_md.analysis.alignment import rmsd as _rmsd_pointwise
 
 
 def rmsd_trajectory(

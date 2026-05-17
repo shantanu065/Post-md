@@ -133,7 +133,7 @@ def _read_header(f) -> tuple[int, int, int, float, np.ndarray] | None:
 def _decompress(f, natoms: int) -> np.ndarray:
     cmp_hdr = f.read(40)
     if len(cmp_hdr) < 40:
-        raise IOError("truncated XTC compressed header")
+        raise OSError("truncated XTC compressed header")
     natoms_again = struct.unpack(">i", cmp_hdr[0:4])[0]
     precision = struct.unpack(">f", cmp_hdr[4:8])[0]
     minint = list(struct.unpack(">iii", cmp_hdr[8:20]))
@@ -149,7 +149,7 @@ def _decompress(f, natoms: int) -> np.ndarray:
     pad = (4 - (nbytes % 4)) % 4
     buf = f.read(nbytes + pad)
     if len(buf) < nbytes:
-        raise IOError("truncated XTC compressed buffer")
+        raise OSError("truncated XTC compressed buffer")
 
     sizeint = [
         maxint[0] - minint[0] + 1,
@@ -253,7 +253,7 @@ class XtcTrajectory(Trajectory):
         self._index()
 
     @classmethod
-    def open(cls, path: str | Path, n_atoms: int) -> "XtcTrajectory":
+    def open(cls, path: str | Path, n_atoms: int) -> XtcTrajectory:
         return cls(path, n_atoms)
 
     @property
@@ -290,7 +290,7 @@ class XtcTrajectory(Trajectory):
             f.seek(self._frame_offsets[index])
             h = _read_header(f)
             if h is None:
-                raise IOError(f"failed reading frame {index}")
+                raise OSError(f"failed reading frame {index}")
             _, natoms, _, time, box = h
             if natoms != self._n_atoms:
                 raise ValueError(

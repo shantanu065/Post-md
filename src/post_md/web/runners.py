@@ -15,7 +15,6 @@ import numpy as np
 from post_md.core.universe import Universe
 from post_md.plotting import PlotStyle
 
-
 _TIME_UNIT_FACTORS = {"ps": 1.0, "ns": 1e-3, "fs": 1e3, "us": 1e-6}
 
 

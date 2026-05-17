@@ -19,7 +19,7 @@ class Universe:
         self.trajectory = trajectory
 
     @classmethod
-    def load(cls, topology_path: str, trajectory_path: str) -> "Universe":
+    def load(cls, topology_path: str, trajectory_path: str) -> Universe:
         from post_md.io import open_topology, open_trajectory
 
         top = open_topology(topology_path)

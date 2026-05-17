@@ -200,7 +200,7 @@ class AmberNetCDFTrajectory(Trajectory):
         self._numrecs = int(numrecs)
 
     @classmethod
-    def open(cls, path: str | Path, n_atoms: int) -> "AmberNetCDFTrajectory":
+    def open(cls, path: str | Path, n_atoms: int) -> AmberNetCDFTrajectory:
         return cls(path, n_atoms)
 
     @property

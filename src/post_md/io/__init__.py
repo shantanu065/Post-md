@@ -3,7 +3,7 @@
 from __future__ import annotations
 
 import os
-from typing import Callable
+from collections.abc import Callable
 
 from post_md.core.topology import Topology
 from post_md.core.trajectory import Trajectory

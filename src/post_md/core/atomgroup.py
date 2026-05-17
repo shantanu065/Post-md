@@ -11,7 +11,7 @@ if TYPE_CHECKING:
 
 
 class AtomGroup:
-    def __init__(self, universe: "Universe", indices: np.ndarray):
+    def __init__(self, universe: Universe, indices: np.ndarray):
         self.universe = universe
         self.indices = np.asarray(indices, dtype=np.int64)
 

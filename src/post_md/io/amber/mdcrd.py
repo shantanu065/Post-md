@@ -21,7 +21,7 @@ class AmberMdcrdTrajectory(Trajectory):
         self._load()
 
     @classmethod
-    def open(cls, path: str | Path, n_atoms: int) -> "AmberMdcrdTrajectory":
+    def open(cls, path: str | Path, n_atoms: int) -> AmberMdcrdTrajectory:
         return cls(path, n_atoms)
 
     @property

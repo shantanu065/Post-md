@@ -87,7 +87,7 @@ class GroTrajectory(Trajectory):
         self._load()
 
     @classmethod
-    def open(cls, path: str | Path, n_atoms: int) -> "GroTrajectory":
+    def open(cls, path: str | Path, n_atoms: int) -> GroTrajectory:
         return cls(path, n_atoms)
 
     @property

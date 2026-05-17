@@ -2,7 +2,6 @@
 
 from __future__ import annotations
 
-import struct
 from pathlib import Path
 
 import numpy as np
@@ -75,7 +74,7 @@ class TrrTrajectory(Trajectory):
         self._index()
 
     @classmethod
-    def open(cls, path: str | Path, n_atoms: int) -> "TrrTrajectory":
+    def open(cls, path: str | Path, n_atoms: int) -> TrrTrajectory:
         return cls(path, n_atoms)
 
     @property
@@ -109,7 +108,7 @@ class TrrTrajectory(Trajectory):
             f.seek(self._frame_offsets[index])
             h = _read_header(f)
             if h is None:
-                raise IOError(f"failed reading frame {index}")
+                raise OSError(f"failed reading frame {index}")
 
             box: np.ndarray | None = None
             if h["box_size"]:

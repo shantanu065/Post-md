@@ -65,6 +65,19 @@ target-version = "py310"
 select = ["E", "F", "W", "I", "B", "UP", "NPY"]
 ignore = ["E501"]  # let formatter handle line length
 
+[tool.ruff.lint.flake8-bugbear]
+# FastAPI's dependency-injection helpers are designed to be used as defaults.
+extend-immutable-calls = [
+    "fastapi.File",
+    "fastapi.Form",
+    "fastapi.Body",
+    "fastapi.Depends",
+    "fastapi.Header",
+    "fastapi.Cookie",
+    "fastapi.Query",
+    "fastapi.Path",
+]
+
 [tool.mypy]
 python_version = "3.10"
 strict = false

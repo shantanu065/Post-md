@@ -8,12 +8,11 @@ adds sessions + a worker pool for the multi-user Docker deployment.
 
 from __future__ import annotations
 
-import json
 from pathlib import Path
 from typing import Any
 
 from fastapi import FastAPI, File, HTTPException, Request, UploadFile
-from fastapi.responses import FileResponse, HTMLResponse, JSONResponse
+from fastapi.responses import FileResponse, HTMLResponse
 from fastapi.templating import Jinja2Templates
 
 from post_md.web.runners import RUNNERS, run_info
@@ -123,7 +122,7 @@ def create_app(workdir: str | Path) -> FastAPI:
         try:
             return run_info(workdir / st["topology"], workdir / st["trajectory"])
         except Exception as exc:
-            raise HTTPException(status_code=500, detail=str(exc))
+            raise HTTPException(status_code=500, detail=str(exc)) from exc
 
     @app.post("/api/run/{analysis}")
     async def run_analysis(analysis: str, payload: dict[str, Any]) -> dict[str, Any]:
@@ -143,9 +142,9 @@ def create_app(workdir: str | Path) -> FastAPI:
             traj_path = workdir / (st["trajectory"] or "")
             result = RUNNERS[analysis](top_path, traj_path, workdir, payload or {})
         except FileNotFoundError as exc:
-            raise HTTPException(status_code=400, detail=str(exc))
+            raise HTTPException(status_code=400, detail=str(exc)) from exc
         except Exception as exc:
-            raise HTTPException(status_code=500, detail=f"{type(exc).__name__}: {exc}")
+            raise HTTPException(status_code=500, detail=f"{type(exc).__name__}: {exc}") from exc
         return {"result": result, "state": _state(workdir)}
 
     @app.get("/api/result/{filename}")

@@ -62,7 +62,7 @@ def write_gro(path: Path, frames: np.ndarray) -> None:
             f.write(f"Post_MD demo dipeptide, frame {i}\n")
             f.write(f"{len(ATOM_RECORDS):5d}\n")
             for atom_idx, ((res_id, res_name, atom_name), xyz) in enumerate(
-                zip(ATOM_RECORDS, coords), start=1
+                zip(ATOM_RECORDS, coords, strict=True), start=1
             ):
                 x, y, z = xyz
                 f.write(
