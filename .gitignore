@@ -11,7 +11,7 @@ dist/
 pip-wheel-metadata/
 src/*.egg-info/
 
-.venv/
+.venv*/
 venv/
 env/
 ENV/
