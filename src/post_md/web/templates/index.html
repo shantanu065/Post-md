@@ -35,7 +35,11 @@
     .grid-2, .grid-3 { grid-template-columns: 1fr; }
   }
   label small { color: var(--pico-muted-color); }
-  fieldset { border: none; padding: 0; margin: 0; }
+  fieldset { border: 1px solid var(--pico-card-border-color); padding: 0.7rem 0.9rem; margin: 0 0 0.7rem 0; border-radius: 6px; background: var(--pico-card-background-color); }
+  fieldset > strong { display: inline-block; margin-bottom: 0.2rem; }
+  .mode-row { display: flex; gap: 1.2rem; margin: 0.35rem 0 0.45rem 0; font-size: 0.92rem; }
+  .mode-row label { display: inline-flex; align-items: center; gap: 0.3rem; margin: 0; cursor: pointer; }
+  .mode-pane input[type="text"] { font-family: var(--pico-font-family-monospace); font-size: 0.92rem; }
   details { background: var(--pico-card-sectioning-background-color); padding: 0.6rem 0.9rem; border-radius: 6px; margin: 0.6rem 0; }
   details > summary { cursor: pointer; font-weight: 600; }
   details > div { margin-top: 0.75rem; }
@@ -63,19 +67,43 @@
 <!-- 1. Upload                                                    -->
 <!-- =========================================================== -->
 <article id="upload-card">
-  <header><strong>1. Upload trajectory</strong></header>
-  <div class="grid-2">
-    <label>Topology file<br>
-      <small>.prmtop / .parm7 (AMBER), .gro (GROMACS), .pdb</small>
+  <header><strong>1. Provide topology + trajectory</strong></header>
+  <p class="muted" style="margin-top: -0.4rem;">
+    Two options per file. <strong>Upload</strong> sends the file to this server (good up to a few GB). <strong>Use file on disk</strong> just records the absolute path — no upload, no copy — ideal for very large trajectories (multi-GB / TB).
+  </p>
+
+  <!-- Topology row -->
+  <fieldset>
+    <strong>Topology</strong> &nbsp;<small class="muted">.prmtop / .parm7 (AMBER), .gro (GROMACS), .pdb</small>
+    <div class="mode-row">
+      <label><input type="radio" name="topo-mode" value="upload" checked> Upload</label>
+      <label><input type="radio" name="topo-mode" value="path"> Use file on disk</label>
+    </div>
+    <div class="mode-pane" data-role="topology" data-mode="upload">
       <input type="file" id="file-topology" accept=".prmtop,.parm7,.gro,.pdb">
-    </label>
-    <label>Trajectory file<br>
-      <small>.nc / .mdcrd (AMBER), .xtc / .trr / .gro (GROMACS)</small>
+    </div>
+    <div class="mode-pane" data-role="topology" data-mode="path" style="display:none">
+      <input type="text" id="path-topology" placeholder="e.g. C:\Users\you\sims\system.prmtop">
+    </div>
+  </fieldset>
+
+  <!-- Trajectory row -->
+  <fieldset>
+    <strong>Trajectory</strong> &nbsp;<small class="muted">.nc / .mdcrd (AMBER), .xtc / .trr / .gro (GROMACS)</small>
+    <div class="mode-row">
+      <label><input type="radio" name="traj-mode" value="upload" checked> Upload</label>
+      <label><input type="radio" name="traj-mode" value="path"> Use file on disk</label>
+    </div>
+    <div class="mode-pane" data-role="trajectory" data-mode="upload">
       <input type="file" id="file-trajectory" accept=".nc,.ncdf,.mdcrd,.crd,.xtc,.trr,.gro">
-    </label>
-  </div>
+    </div>
+    <div class="mode-pane" data-role="trajectory" data-mode="path" style="display:none">
+      <input type="text" id="path-trajectory" placeholder="e.g. D:\runs\prod.xtc">
+    </div>
+  </fieldset>
+
   <div class="run-row">
-    <button id="btn-upload">Upload</button>
+    <button id="btn-upload">Use selected files</button>
     <button id="btn-reset" class="secondary outline">Reset workspace</button>
     <span id="upload-status" class="status-line"></span>
   </div>
@@ -329,14 +357,19 @@ async function refreshStatus() {
 function renderStatus() {
   const pills = $('#status-pills');
   pills.innerHTML = '';
-  function pill(label, value) {
+  function pill(label, value, source) {
     const span = document.createElement('span');
     span.className = 'pill' + (value ? ' ok' : '');
-    span.textContent = value ? `${label}: ${value}` : `no ${label}`;
+    if (value) {
+      const tag = source === 'path' ? ' (on disk)' : '';
+      span.textContent = `${label}: ${value}${tag}`;
+    } else {
+      span.textContent = `no ${label}`;
+    }
     pills.appendChild(span);
   }
-  pill('topology', state.topology);
-  pill('trajectory', state.trajectory);
+  pill('topology',   state.topology,   state.topology_source);
+  pill('trajectory', state.trajectory, state.trajectory_source);
 }
 
 function renderFiles() {
@@ -367,31 +400,71 @@ $$('#tabs button').forEach(btn => {
   });
 });
 
-// ---- upload (streaming, one file per request, with progress) ----
+// ---- mode toggle (upload vs use-path, per role) ----
+function currentMode(role) {
+  const name = role === 'topology' ? 'topo-mode' : 'traj-mode';
+  const sel = document.querySelector(`input[name="${name}"]:checked`);
+  return sel ? sel.value : 'upload';
+}
+function setPanesFor(role) {
+  const mode = currentMode(role);
+  $$(`.mode-pane[data-role="${role}"]`).forEach(p => {
+    p.style.display = (p.dataset.mode === mode) ? '' : 'none';
+  });
+}
+$$('input[name="topo-mode"]').forEach(r => r.addEventListener('change', () => setPanesFor('topology')));
+$$('input[name="traj-mode"]').forEach(r => r.addEventListener('change', () => setPanesFor('trajectory')));
+
+// ---- submit: dispatch upload OR use-path per role ----
 $('#btn-upload').addEventListener('click', async () => {
-  const top  = $('#file-topology').files[0];
-  const traj = $('#file-trajectory').files[0];
-  if (!top && !traj) {
-    setUploadStatus('Pick at least one file.', true);
+  const queue = [];
+  for (const role of ['topology', 'trajectory']) {
+    const mode = currentMode(role);
+    if (mode === 'upload') {
+      const file = $(role === 'topology' ? '#file-topology' : '#file-trajectory').files[0];
+      if (file) queue.push({ role, mode, file });
+    } else {
+      const path = $(role === 'topology' ? '#path-topology' : '#path-trajectory').value.trim();
+      if (path) queue.push({ role, mode, path });
+    }
+  }
+  if (!queue.length) {
+    setUploadStatus('Pick a file or enter a path for at least one role.', true);
     return;
   }
-  const queue = [];
-  if (top)  queue.push({ role: 'topology',   file: top  });
-  if (traj) queue.push({ role: 'trajectory', file: traj });
 
-  setUploadStatus(`Uploading ${queue.length} file(s)…`, false);
+  setUploadStatus(`Submitting ${queue.length} item(s)…`, false);
   try {
-    const savedNames = [];
+    const summary = [];
     for (const item of queue) {
-      const res = await uploadOne(item.role, item.file);
-      if (res && res.saved) savedNames.push(res.saved);
+      if (item.mode === 'upload') {
+        const res = await uploadOne(item.role, item.file);
+        if (res && res.saved) summary.push(`${item.role}=${res.saved} (uploaded)`);
+      } else {
+        const res = await registerPath(item.role, item.path);
+        if (res && res.path) summary.push(`${item.role}=${res.path} (on disk)`);
+      }
     }
-    setUploadStatus(`Uploaded: ${savedNames.join(', ') || '(none)'}`, false);
+    setUploadStatus(summary.join('   ·   ') || 'No changes.', false);
     await refreshStatus();
   } catch (err) {
-    setUploadStatus(`Upload failed: ${err.message || err}`, true);
+    setUploadStatus(`Failed: ${err.message || err}`, true);
+    await refreshStatus();
   }
 });
+
+async function registerPath(role, path) {
+  const res = await fetch('/api/use-path', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ role, path }),
+  });
+  const data = await res.json().catch(() => ({}));
+  if (!res.ok) {
+    throw new Error(`${res.status}: ${data.detail || res.statusText}`);
+  }
+  return data;
+}
 
 function uploadOne(role, file) {
   return new Promise((resolve, reject) => {
