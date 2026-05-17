@@ -367,34 +367,66 @@ $$('#tabs button').forEach(btn => {
   });
 });
 
-// ---- upload ----
+// ---- upload (streaming, one file per request, with progress) ----
 $('#btn-upload').addEventListener('click', async () => {
-  const top = $('#file-topology').files[0];
+  const top  = $('#file-topology').files[0];
   const traj = $('#file-trajectory').files[0];
   if (!top && !traj) {
     setUploadStatus('Pick at least one file.', true);
     return;
   }
-  const fd = new FormData();
-  if (top) fd.append('topology', top);
-  if (traj) fd.append('trajectory', traj);
-  setUploadStatus('Uploading…', false);
+  const queue = [];
+  if (top)  queue.push({ role: 'topology',   file: top  });
+  if (traj) queue.push({ role: 'trajectory', file: traj });
+
+  setUploadStatus(`Uploading ${queue.length} file(s)…`, false);
   try {
-    const res = await fetch('/api/upload', { method: 'POST', body: fd });
-    if (!res.ok) {
-      const err = await res.json();
-      setUploadStatus(`Upload failed: ${err.detail || res.statusText}`, true);
-      return;
+    const savedNames = [];
+    for (const item of queue) {
+      const res = await uploadOne(item.role, item.file);
+      if (res && res.saved) savedNames.push(res.saved);
     }
-    const data = await res.json();
-    state = data.state;
-    renderStatus();
-    renderFiles();
-    setUploadStatus(`Uploaded: ${data.saved.join(', ') || '(nothing new)'}`, false);
-  } catch (e) {
-    setUploadStatus(`Upload failed: ${e}`, true);
+    setUploadStatus(`Uploaded: ${savedNames.join(', ') || '(none)'}`, false);
+    await refreshStatus();
+  } catch (err) {
+    setUploadStatus(`Upload failed: ${err.message || err}`, true);
   }
 });
+
+function uploadOne(role, file) {
+  return new Promise((resolve, reject) => {
+    const url = `/api/upload?role=${encodeURIComponent(role)}&filename=${encodeURIComponent(file.name)}`;
+    const xhr = new XMLHttpRequest();
+    xhr.open('POST', url);
+    xhr.responseType = 'json';
+    xhr.upload.onprogress = (e) => {
+      if (!e.lengthComputable) return;
+      const pct = ((e.loaded / e.total) * 100).toFixed(1);
+      setUploadStatus(
+        `Uploading ${file.name} (${role}): ${pct}%  (${formatBytes(e.loaded)} / ${formatBytes(e.total)})`,
+        false,
+      );
+    };
+    xhr.onload = () => {
+      if (xhr.status >= 200 && xhr.status < 300) {
+        resolve(xhr.response);
+      } else {
+        const detail = (xhr.response && xhr.response.detail) || xhr.statusText || `HTTP ${xhr.status}`;
+        reject(new Error(`${xhr.status}: ${detail}`));
+      }
+    };
+    xhr.onerror = () => reject(new Error('network error'));
+    xhr.onabort = () => reject(new Error('aborted'));
+    xhr.send(file);
+  });
+}
+
+function formatBytes(b) {
+  if (b < 1024)      return `${b} B`;
+  if (b < 1024 ** 2) return `${(b / 1024).toFixed(1)} KB`;
+  if (b < 1024 ** 3) return `${(b / 1024 / 1024).toFixed(1)} MB`;
+  return `${(b / 1024 / 1024 / 1024).toFixed(2)} GB`;
+}
 
 $('#btn-reset').addEventListener('click', async () => {
   if (!confirm('Delete every file in the workspace?')) return;

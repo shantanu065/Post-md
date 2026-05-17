@@ -11,7 +11,7 @@ from __future__ import annotations
 from pathlib import Path
 from typing import Any
 
-from fastapi import FastAPI, File, HTTPException, Request, UploadFile
+from fastapi import FastAPI, HTTPException, Request
 from fastapi.responses import FileResponse, HTMLResponse
 from fastapi.templating import Jinja2Templates
 
@@ -71,48 +71,58 @@ def create_app(workdir: str | Path) -> FastAPI:
         return _state(workdir)
 
     @app.post("/api/upload")
-    async def upload(
-        topology: UploadFile | None = File(None),
-        trajectory: UploadFile | None = File(None),
-    ) -> dict[str, Any]:
-        saved: list[str] = []
-        for f in (topology, trajectory):
-            if f is None:
-                continue
-            name = Path(f.filename or "").name
-            if not name:
-                continue
-            ext = Path(name).suffix.lower()
-            if ext not in _TOPOLOGY_EXTS | _TRAJECTORY_EXTS:
-                raise HTTPException(
-                    status_code=415,
-                    detail=f"Unsupported extension {ext!r}. Allowed: "
-                           f"{sorted(_TOPOLOGY_EXTS | _TRAJECTORY_EXTS)}",
-                )
-            # Clear any previous file with the same role (topology vs trajectory)
-            target_set = _TOPOLOGY_EXTS if ext in _TOPOLOGY_EXTS and ext not in _TRAJECTORY_EXTS else None
-            if ext == ".gro":
-                # .gro is both — treat per-upload (clear other .gro too)
-                target_set = {".gro"}
-            elif ext in _TOPOLOGY_EXTS:
-                target_set = _TOPOLOGY_EXTS
-            else:
-                target_set = _TRAJECTORY_EXTS
-            for existing in list(workdir.iterdir()):
-                if existing.is_file() and existing.suffix.lower() in target_set:
-                    try:
-                        existing.unlink()
-                    except OSError:
-                        pass
-            dest = _safe_workdir_path(workdir, name)
-            with dest.open("wb") as out:
-                while True:
-                    chunk = await f.read(1 << 20)
-                    if not chunk:
-                        break
+    async def upload(request: Request) -> dict[str, Any]:
+        """Streaming upload of one file at a time.
+
+        The body is the raw file bytes; `role` and `filename` come in via
+        query string. This bypasses starlette's 1 MiB multipart-part limit
+        and lets the client report real upload progress (XHR.upload).
+        """
+        role = request.query_params.get("role")
+        filename_raw = request.query_params.get("filename")
+        if role not in ("topology", "trajectory") or not filename_raw:
+            raise HTTPException(
+                400,
+                "Missing 'role' (topology|trajectory) or 'filename' query parameter.",
+            )
+
+        name = Path(filename_raw).name
+        if not name:
+            raise HTTPException(400, "Empty filename.")
+        ext = Path(name).suffix.lower()
+        allowed = _TOPOLOGY_EXTS if role == "topology" else _TRAJECTORY_EXTS
+        if ext not in allowed:
+            raise HTTPException(
+                415,
+                f"Unsupported {role} extension {ext!r}. Allowed: {sorted(allowed)}",
+            )
+
+        # Clear any previous file occupying the same role before writing the new one.
+        # .gro is both topology and trajectory, so we only clear other .gro in that case.
+        if ext == ".gro":
+            target_set = {".gro"}
+        else:
+            target_set = _TOPOLOGY_EXTS if role == "topology" else _TRAJECTORY_EXTS
+        for existing in list(workdir.iterdir()):
+            if existing.is_file() and existing.suffix.lower() in target_set:
+                try:
+                    existing.unlink()
+                except OSError:
+                    pass
+
+        dest = _safe_workdir_path(workdir, name)
+        bytes_written = 0
+        with dest.open("wb") as out:
+            async for chunk in request.stream():
+                if chunk:
                     out.write(chunk)
-            saved.append(dest.name)
-        return {"saved": saved, "state": _state(workdir)}
+                    bytes_written += len(chunk)
+
+        return {
+            "saved": dest.name,
+            "bytes": bytes_written,
+            "state": _state(workdir),
+        }
 
     @app.post("/api/info")
     async def info_endpoint() -> dict[str, Any]:
