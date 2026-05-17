@@ -1,0 +1,22 @@
+Post_MD
+=======
+
+Post_MD is dual-licensed:
+
+  * GNU Affero General Public License v3.0 or later — see LICENSE
+  * Commercial license — see LICENSE-COMMERCIAL.md
+
+External contributions are accepted only under a Contributor License
+Agreement (CLA). The CLA grants the project maintainers the right to
+relicense the contribution under the commercial license alongside the
+AGPL-3.0. See CONTRIBUTING.md for details.
+
+Trademark notices for third-party file formats referenced by this project:
+
+  * AMBER is a registered trademark of the University of California.
+  * GROMACS is a registered trademark of the Royal Institute of Technology
+    (Sweden).
+
+Post_MD reads these formats by way of pure-Python parsers written from
+public specifications and is not affiliated with or endorsed by either
+project.
