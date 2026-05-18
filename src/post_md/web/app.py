@@ -15,6 +15,7 @@ deployment.
 
 from __future__ import annotations
 
+import asyncio
 import json
 from pathlib import Path
 from typing import Any
@@ -31,6 +32,14 @@ _TOPOLOGY_EXTS = {".prmtop", ".parm7", ".gro", ".pdb"}
 _TRAJECTORY_EXTS = {".nc", ".ncdf", ".mdcrd", ".crd", ".trr", ".xtc", ".gro"}
 _STATE_FILENAME = ".post_md_state.json"
 _OUTPUT_EXTS = {".dat", ".csv", ".xvg", ".npz", ".png", ".pdb"}
+
+# Disk write buffer for streaming uploads. Larger = fewer syscalls = faster
+# throughput, at the cost of more memory while a chunk is being absorbed.
+_UPLOAD_WRITE_BUFFER = 8 * 1024 * 1024  # 8 MiB
+# Flush-to-disk threshold inside the async chunk loop. Chunks are accumulated
+# in a bytearray and handed off to a worker thread in big batches, so the
+# event loop is not blocked once per ~16 KiB HTTP chunk.
+_UPLOAD_FLUSH_THRESHOLD = 4 * 1024 * 1024  # 4 MiB
 
 
 def _safe_workdir_path(workdir: Path, name: str) -> Path:
@@ -171,22 +180,12 @@ def create_app(workdir: str | Path) -> FastAPI:
     async def status() -> dict[str, Any]:
         return _state(workdir)
 
-    @app.post("/api/upload")
-    async def upload(request: Request) -> dict[str, Any]:
-        """Streaming upload of one file at a time.
-
-        Body is raw file bytes; `role` and `filename` come in via query
-        string. No multipart parsing, no part-size limit. Memory bounded
-        by HTTP chunk size — works for any file the browser can send.
-        """
-        role = request.query_params.get("role")
-        filename_raw = request.query_params.get("filename")
+    def _validate_upload_params(role: str | None, filename_raw: str | None) -> tuple[str, str]:
         if role not in ("topology", "trajectory") or not filename_raw:
             raise HTTPException(
                 400,
                 "Missing 'role' (topology|trajectory) or 'filename' query parameter.",
             )
-
         name = Path(filename_raw).name
         if not name:
             raise HTTPException(400, "Empty filename.")
@@ -197,10 +196,23 @@ def create_app(workdir: str | Path) -> FastAPI:
                 415,
                 f"Unsupported {role} extension {ext!r}. Allowed: {sorted(allowed)}",
             )
+        return name, ext
+
+    @app.post("/api/upload")
+    async def upload(request: Request) -> dict[str, Any]:
+        """Single-request streaming upload (legacy / small files).
+
+        Body is raw file bytes; `role` and `filename` come in via query
+        string. Disk writes are batched and run in a worker thread so the
+        event loop stays responsive even for multi-GB transfers. Larger
+        files should prefer the resumable chunked endpoints below.
+        """
+        role = request.query_params.get("role")
+        filename_raw = request.query_params.get("filename")
+        name, ext = _validate_upload_params(role, filename_raw)
 
         _clear_uploaded_role(workdir, role, new_ext=ext)
 
-        # Switching to an upload supersedes any prior path reference for this role.
         refs = _read_refs(workdir)
         if role in refs:
             refs.pop(role)
@@ -208,16 +220,201 @@ def create_app(workdir: str | Path) -> FastAPI:
 
         dest = _safe_workdir_path(workdir, name)
         bytes_written = 0
-        with dest.open("wb") as out:
+        loop = asyncio.get_running_loop()
+        with dest.open("wb", buffering=_UPLOAD_WRITE_BUFFER) as out:
+            buf = bytearray()
             async for chunk in request.stream():
-                if chunk:
-                    out.write(chunk)
-                    bytes_written += len(chunk)
+                if not chunk:
+                    continue
+                buf.extend(chunk)
+                bytes_written += len(chunk)
+                if len(buf) >= _UPLOAD_FLUSH_THRESHOLD:
+                    await loop.run_in_executor(None, out.write, bytes(buf))
+                    buf.clear()
+            if buf:
+                await loop.run_in_executor(None, out.write, bytes(buf))
 
         return {
             "saved": dest.name,
             "bytes": bytes_written,
             "state": _state(workdir),
+        }
+
+    @app.get("/api/browse")
+    async def browse(path: str | None = None, role: str | None = None) -> dict[str, Any]:
+        """List a server-side directory for the on-disk file picker.
+
+        Returns sub-directories plus files whose extension matches the
+        given `role` (topology/trajectory). When `role` is omitted, all
+        files are returned. When `path` is omitted, browsing starts at
+        the workdir's parent (a sensible jump-off for the common case
+        where the user runs the server from their data directory).
+
+        This walks the host filesystem — fine for the default 127.0.0.1
+        bind, but the caveat that applies to `/api/use-path` applies
+        here too: don't expose this server to an untrusted network.
+        """
+        if not path:
+            start = workdir.parent if workdir.parent != workdir else workdir
+        else:
+            start = Path(path).expanduser()
+        try:
+            start = start.resolve(strict=True)
+        except (FileNotFoundError, OSError) as exc:
+            raise HTTPException(400, f"Not found: {path}") from exc
+        if not start.is_dir():
+            raise HTTPException(400, f"Not a directory: {start}")
+
+        if role == "topology":
+            allowed: set[str] | None = _TOPOLOGY_EXTS
+        elif role == "trajectory":
+            allowed = _TRAJECTORY_EXTS
+        elif role in (None, "", "any"):
+            allowed = None
+        else:
+            raise HTTPException(400, f"Invalid role: {role!r}")
+
+        dirs: list[dict[str, Any]] = []
+        files: list[dict[str, Any]] = []
+        try:
+            entries = sorted(start.iterdir(), key=lambda p: p.name.lower())
+        except PermissionError as exc:
+            raise HTTPException(403, f"Permission denied: {start}") from exc
+
+        for entry in entries:
+            if entry.name.startswith("."):
+                continue
+            try:
+                if entry.is_dir():
+                    dirs.append({"name": entry.name, "path": str(entry)})
+                elif entry.is_file():
+                    ext = entry.suffix.lower()
+                    if allowed is None or ext in allowed:
+                        files.append({
+                            "name": entry.name,
+                            "path": str(entry),
+                            "size": entry.stat().st_size,
+                            "ext": ext,
+                        })
+            except (PermissionError, OSError):
+                # Skip unreadable entries rather than failing the whole listing.
+                continue
+
+        parent = str(start.parent) if start.parent != start else None
+        return {
+            "path": str(start),
+            "parent": parent,
+            "dirs": dirs,
+            "files": files,
+            "role": role,
+        }
+
+    @app.get("/api/upload-status")
+    async def upload_status(role: str, filename: str) -> dict[str, Any]:
+        """How many bytes of `<role>/<filename>` are already on disk.
+
+        Client uses this on resume: if its localStorage offset matches
+        the server's `bytes` and the user picked the same file, the
+        next chunk picks up where we left off.
+        """
+        name, _ = _validate_upload_params(role, filename)
+        dest = _safe_workdir_path(workdir, name)
+        if not dest.exists() or not dest.is_file():
+            return {"role": role, "filename": name, "bytes": 0}
+        return {"role": role, "filename": name, "bytes": dest.stat().st_size}
+
+    @app.post("/api/upload-chunk")
+    async def upload_chunk(request: Request) -> dict[str, Any]:
+        """Append one chunk of a resumable upload.
+
+        Query params:
+          role     — 'topology' | 'trajectory'
+          filename — final basename
+          offset   — byte offset this chunk starts at (must equal current file size)
+          total    — total file size in bytes (informational; used for the
+                     final-chunk check and the response payload)
+          final    — '1' on the last chunk; triggers state-finalisation
+                     (clear stale path-refs, return _state)
+
+        Sequential semantics: `offset == file.size`. This keeps resume
+        trivially correct — the client just queries `/api/upload-status`
+        and continues. Out-of-order chunks return 409.
+        """
+        qp = request.query_params
+        role = qp.get("role")
+        filename_raw = qp.get("filename")
+        name, ext = _validate_upload_params(role, filename_raw)
+
+        try:
+            offset = int(qp.get("offset", ""))
+            total = int(qp.get("total", ""))
+        except ValueError as exc:
+            raise HTTPException(400, "offset/total must be integers") from exc
+        if offset < 0 or total < 0 or offset > total:
+            raise HTTPException(400, "invalid offset/total")
+        final_flag = qp.get("final") in ("1", "true", "True")
+
+        dest = _safe_workdir_path(workdir, name)
+
+        # First chunk of a fresh upload — wipe out any previous file in this
+        # role, drop conflicting path-refs, and start a new file at offset 0.
+        if offset == 0:
+            _clear_uploaded_role(workdir, role, new_ext=ext)
+            refs = _read_refs(workdir)
+            if role in refs:
+                refs.pop(role)
+                _write_refs(workdir, refs)
+            # Recreate as an empty file so the size check below is consistent.
+            dest.write_bytes(b"")
+
+        # Enforce sequential append.
+        current = dest.stat().st_size if dest.exists() else 0
+        if current != offset:
+            raise HTTPException(
+                status_code=409,
+                detail=f"offset mismatch: server has {current} bytes, client sent {offset}",
+            )
+
+        bytes_written = 0
+        loop = asyncio.get_running_loop()
+        with dest.open("ab", buffering=_UPLOAD_WRITE_BUFFER) as out:
+            buf = bytearray()
+            async for chunk in request.stream():
+                if not chunk:
+                    continue
+                buf.extend(chunk)
+                bytes_written += len(chunk)
+                if len(buf) >= _UPLOAD_FLUSH_THRESHOLD:
+                    await loop.run_in_executor(None, out.write, bytes(buf))
+                    buf.clear()
+            if buf:
+                await loop.run_in_executor(None, out.write, bytes(buf))
+
+        new_size = dest.stat().st_size
+        if new_size > total:
+            raise HTTPException(
+                status_code=400,
+                detail=f"upload overflow: file is {new_size} bytes, declared total {total}",
+            )
+        if final_flag and new_size != total:
+            # Client said "this is the last chunk" but the byte count doesn't
+            # add up. Treat as malformed — caller's view of file size is wrong,
+            # or they skipped a chunk. Better to fail loudly than mark the
+            # upload finished and have downstream analyses read a truncated file.
+            raise HTTPException(
+                status_code=400,
+                detail=f"final chunk size mismatch: server has {new_size} bytes, declared total {total}",
+            )
+
+        complete = new_size == total
+        return {
+            "role": role,
+            "filename": name,
+            "received": new_size,
+            "total": total,
+            "chunk_bytes": bytes_written,
+            "complete": complete,
+            "state": _state(workdir) if complete else None,
         }
 
     @app.post("/api/use-path")

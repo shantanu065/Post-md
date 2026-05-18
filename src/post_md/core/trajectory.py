@@ -56,7 +56,19 @@ class Trajectory(ABC):
     def coordinates_and_times(
         self, selection: np.ndarray | None = None
     ) -> tuple[np.ndarray, np.ndarray]:
-        """Like :meth:`coordinates`, but also returns per-frame times (ps)."""
+        """Like :meth:`coordinates`, but also returns per-frame times (ps).
+
+        Fast path: if the underlying reader exposes ``coordinates_slab`` /
+        ``times_slab`` (e.g. AMBER NetCDF), the whole trajectory is pulled
+        in one C-level batched read instead of a per-frame Python loop.
+        """
+        slab = getattr(self, "coordinates_slab", None)
+        tslab = getattr(self, "times_slab", None)
+        if callable(slab) and callable(tslab):
+            coords = slab(0, self.n_frames, selection)
+            times = tslab(0, self.n_frames)
+            return coords, times
+
         if selection is None:
             sel: slice | np.ndarray = slice(None)
             n_sel = self.n_atoms
@@ -72,6 +84,9 @@ class Trajectory(ABC):
 
     def times(self) -> np.ndarray:
         """Return per-frame time in ps. (n_frames,) float64."""
+        tslab = getattr(self, "times_slab", None)
+        if callable(tslab):
+            return tslab(0, self.n_frames)
         out = np.empty(self.n_frames, dtype=np.float64)
         for i, frame in enumerate(self):
             out[i] = frame.time

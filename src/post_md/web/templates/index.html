@@ -53,6 +53,30 @@
   .run-row { display: flex; gap: 0.5rem; align-items: center; margin-top: 0.5rem; }
   .run-row button { white-space: nowrap; }
   pre.json { font-size: 0.85rem; max-height: 240px; overflow: auto; background: var(--pico-card-sectioning-background-color); padding: 0.6rem; border-radius: 4px; }
+  .path-row { display: flex; gap: 0.4rem; align-items: stretch; }
+  .path-row input[type="text"] { flex: 1; min-width: 0; }
+  .path-row button { white-space: nowrap; }
+  .file-browser {
+    margin-top: 0.5rem;
+    border: 1px solid var(--pico-card-border-color);
+    border-radius: 6px;
+    background: var(--pico-card-sectioning-background-color);
+    font-family: var(--pico-font-family-monospace);
+    font-size: 0.9rem;
+  }
+  .fb-header { display: flex; justify-content: space-between; align-items: center; padding: 0.4rem 0.7rem; border-bottom: 1px solid var(--pico-card-border-color); background: var(--pico-card-background-color); border-radius: 6px 6px 0 0; }
+  .fb-path { overflow-wrap: anywhere; font-weight: 600; }
+  .fb-header button { padding: 0.15rem 0.55rem; font-size: 0.8rem; }
+  .fb-entries { max-height: 280px; overflow-y: auto; }
+  .fb-entry { display: flex; gap: 0.5rem; padding: 0.3rem 0.7rem; cursor: pointer; align-items: center; border-bottom: 1px solid transparent; }
+  .fb-entry:hover { background: var(--pico-primary); color: var(--pico-primary-inverse); }
+  .fb-entry .fb-icon { width: 1.2em; text-align: center; }
+  .fb-entry .fb-size { margin-left: auto; color: var(--pico-muted-color); font-size: 0.82rem; }
+  .fb-entry:hover .fb-size { color: var(--pico-primary-inverse); }
+  .fb-empty { padding: 0.7rem; color: var(--pico-muted-color); font-style: italic; }
+  .fb-go { display: flex; gap: 0.3rem; padding: 0.4rem 0.7rem; border-top: 1px solid var(--pico-card-border-color); }
+  .fb-go input { flex: 1; font-size: 0.85rem; }
+  .fb-go button { padding: 0.15rem 0.55rem; font-size: 0.8rem; }
 </style>
 </head>
 <body>
@@ -69,8 +93,9 @@
 <article id="upload-card">
   <header><strong>1. Provide topology + trajectory</strong></header>
   <p class="muted" style="margin-top: -0.4rem;">
-    Two options per file. <strong>Upload</strong> sends the file to this server (good up to a few GB). <strong>Use file on disk</strong> just records the absolute path — no upload, no copy — ideal for very large trajectories (multi-GB / TB).
+    Two options per file. <strong>Upload</strong> sends the file to this server in resumable chunks — restartable on network drops, but still slow for very large trajectories. <strong>Use file on disk</strong> just records the absolute path — no upload, no copy — ideal for multi-GB / TB files when the server can already see them on disk.
   </p>
+  <div id="bigfile-warning" class="status-line error" style="display:none; margin: 0.3rem 0 0.6rem 0;"></div>
 
   <!-- Topology row -->
   <fieldset>
@@ -83,7 +108,11 @@
       <input type="file" id="file-topology" accept=".prmtop,.parm7,.gro,.pdb">
     </div>
     <div class="mode-pane" data-role="topology" data-mode="path" style="display:none">
-      <input type="text" id="path-topology" placeholder="e.g. C:\Users\you\sims\system.prmtop">
+      <div class="path-row">
+        <input type="text" id="path-topology" placeholder="e.g. /home/you/sims/system.prmtop">
+        <button type="button" class="btn-browse" data-role="topology">Browse…</button>
+      </div>
+      <div class="file-browser" id="browser-topology" style="display:none"></div>
     </div>
   </fieldset>
 
@@ -98,7 +127,11 @@
       <input type="file" id="file-trajectory" accept=".nc,.ncdf,.mdcrd,.crd,.xtc,.trr,.gro">
     </div>
     <div class="mode-pane" data-role="trajectory" data-mode="path" style="display:none">
-      <input type="text" id="path-trajectory" placeholder="e.g. D:\runs\prod.xtc">
+      <div class="path-row">
+        <input type="text" id="path-trajectory" placeholder="e.g. /home/you/runs/prod.xtc">
+        <button type="button" class="btn-browse" data-role="trajectory">Browse…</button>
+      </div>
+      <div class="file-browser" id="browser-trajectory" style="display:none"></div>
     </div>
   </fieldset>
 
@@ -466,33 +499,308 @@ async function registerPath(role, path) {
   return data;
 }
 
-function uploadOne(role, file) {
+// ---- server-side file picker (for the "Use file on disk" mode) ----
+//
+// The browser cannot read the user's local filesystem from a text input,
+// so we expose the *server's* filesystem via /api/browse and let the user
+// navigate it. Clicking a file fills the path text box and closes the
+// panel. Per-role state lives in window._browserState so toggling the
+// Browse button reopens at the last visited directory.
+
+window._browserState = window._browserState || { topology: null, trajectory: null };
+
+async function fetchBrowse(role, path) {
+  const params = new URLSearchParams();
+  if (path) params.set('path', path);
+  if (role) params.set('role', role);
+  const res = await fetch('/api/browse?' + params.toString());
+  if (!res.ok) {
+    const d = await res.json().catch(() => ({}));
+    throw new Error(d.detail || `HTTP ${res.status}`);
+  }
+  return res.json();
+}
+
+function fmtSize(b) {
+  if (b == null) return '';
+  if (b < 1024)        return `${b} B`;
+  if (b < 1024 ** 2)   return `${(b / 1024).toFixed(1)} KB`;
+  if (b < 1024 ** 3)   return `${(b / 1024 / 1024).toFixed(1)} MB`;
+  return `${(b / 1024 / 1024 / 1024).toFixed(2)} GB`;
+}
+
+function renderBrowser(role, data) {
+  const panel = $(`#browser-${role}`);
+  const dirs  = data.dirs  || [];
+  const files = data.files || [];
+
+  panel.innerHTML = '';
+
+  // Header: current path + close button
+  const hdr = document.createElement('div');
+  hdr.className = 'fb-header';
+  const pathSpan = document.createElement('span');
+  pathSpan.className = 'fb-path';
+  pathSpan.textContent = data.path;
+  pathSpan.title = data.path;
+  const closeBtn = document.createElement('button');
+  closeBtn.type = 'button';
+  closeBtn.className = 'secondary outline';
+  closeBtn.textContent = 'Close';
+  closeBtn.addEventListener('click', () => { panel.style.display = 'none'; });
+  hdr.append(pathSpan, closeBtn);
+  panel.appendChild(hdr);
+
+  // Entries list
+  const list = document.createElement('div');
+  list.className = 'fb-entries';
+
+  if (data.parent) {
+    const up = document.createElement('div');
+    up.className = 'fb-entry';
+    up.innerHTML = '<span class="fb-icon">↑</span><span>..</span>';
+    up.addEventListener('click', () => openBrowser(role, data.parent));
+    list.appendChild(up);
+  }
+  for (const d of dirs) {
+    const row = document.createElement('div');
+    row.className = 'fb-entry';
+    row.innerHTML = `<span class="fb-icon">📁</span><span>${d.name}</span>`;
+    row.addEventListener('click', () => openBrowser(role, d.path));
+    list.appendChild(row);
+  }
+  for (const f of files) {
+    const row = document.createElement('div');
+    row.className = 'fb-entry';
+    row.innerHTML =
+      `<span class="fb-icon">📄</span><span>${f.name}</span>` +
+      `<span class="fb-size">${fmtSize(f.size)}</span>`;
+    row.addEventListener('click', () => {
+      $(`#path-${role}`).value = f.path;
+      panel.style.display = 'none';
+      updateBigFileWarning();
+    });
+    list.appendChild(row);
+  }
+  if (!dirs.length && !files.length && !data.parent) {
+    const empty = document.createElement('div');
+    empty.className = 'fb-empty';
+    empty.textContent = 'No matching files or sub-directories here.';
+    list.appendChild(empty);
+  } else if (!dirs.length && !files.length) {
+    const empty = document.createElement('div');
+    empty.className = 'fb-empty';
+    empty.textContent = `No matching ${role} files here. Go up with ".." or jump to a path below.`;
+    list.appendChild(empty);
+  }
+  panel.appendChild(list);
+
+  // "Jump to" footer so the user can paste an absolute path directly.
+  const go = document.createElement('div');
+  go.className = 'fb-go';
+  const goInp = document.createElement('input');
+  goInp.type = 'text';
+  goInp.placeholder = 'Jump to absolute path…';
+  goInp.value = data.path;
+  const goBtn = document.createElement('button');
+  goBtn.type = 'button';
+  goBtn.textContent = 'Go';
+  const goHandler = () => {
+    const v = goInp.value.trim();
+    if (v) openBrowser(role, v);
+  };
+  goBtn.addEventListener('click', goHandler);
+  goInp.addEventListener('keydown', (e) => { if (e.key === 'Enter') goHandler(); });
+  go.append(goInp, goBtn);
+  panel.appendChild(go);
+}
+
+async function openBrowser(role, path) {
+  const panel = $(`#browser-${role}`);
+  panel.style.display = '';
+  panel.innerHTML = '<div class="fb-empty">Loading…</div>';
+  try {
+    const data = await fetchBrowse(role, path);
+    window._browserState[role] = data.path;
+    renderBrowser(role, data);
+  } catch (err) {
+    panel.innerHTML = `<div class="fb-empty error">Error: ${err.message}</div>`;
+  }
+}
+
+$$('.btn-browse').forEach(btn => {
+  btn.addEventListener('click', () => {
+    const role = btn.dataset.role;
+    const panel = $(`#browser-${role}`);
+    if (panel.style.display !== 'none') {
+      panel.style.display = 'none';
+      return;
+    }
+    // Start at the value already in the text input, or the last-visited dir,
+    // or the server's default (workdir parent).
+    const typed = $(`#path-${role}`).value.trim();
+    const start = typed || window._browserState[role] || '';
+    openBrowser(role, start);
+  });
+});
+
+// ---- resumable chunked uploader ----
+//
+// File is sliced into CHUNK_SIZE pieces and sent sequentially as POSTs to
+// /api/upload-chunk. The server appends each chunk to the destination file,
+// so resume is just "ask the server how many bytes it has and continue".
+//
+// On a transient failure we retry up to MAX_RETRIES with backoff. On reload
+// we look up localStorage to recover the previous progress; if the file's
+// size + lastModified match what we saw before, we resume from the server's
+// reported byte count, otherwise we restart from 0.
+
+const CHUNK_SIZE   = 16 * 1024 * 1024;   // 16 MiB per chunk
+const MAX_RETRIES  = 5;
+const BIG_FILE_BYTES = 2 * 1024 * 1024 * 1024;  // 2 GiB → suggest disk mode
+
+function uploadStorageKey(role, file) {
+  return `pmd:upload:${role}:${file.name}:${file.size}:${file.lastModified}`;
+}
+
+async function fetchUploadStatus(role, filename) {
+  const url = `/api/upload-status?role=${encodeURIComponent(role)}&filename=${encodeURIComponent(filename)}`;
+  const res = await fetch(url);
+  if (!res.ok) return 0;
+  const data = await res.json().catch(() => ({}));
+  return Number.isFinite(data.bytes) ? data.bytes : 0;
+}
+
+function sendChunk(role, file, offset, end, isFinal) {
   return new Promise((resolve, reject) => {
-    const url = `/api/upload?role=${encodeURIComponent(role)}&filename=${encodeURIComponent(file.name)}`;
+    const blob = file.slice(offset, end);
+    const url =
+      `/api/upload-chunk?role=${encodeURIComponent(role)}` +
+      `&filename=${encodeURIComponent(file.name)}` +
+      `&offset=${offset}&total=${file.size}` +
+      (isFinal ? '&final=1' : '');
     const xhr = new XMLHttpRequest();
     xhr.open('POST', url);
     xhr.responseType = 'json';
-    xhr.upload.onprogress = (e) => {
-      if (!e.lengthComputable) return;
-      const pct = ((e.loaded / e.total) * 100).toFixed(1);
-      setUploadStatus(
-        `Uploading ${file.name} (${role}): ${pct}%  (${formatBytes(e.loaded)} / ${formatBytes(e.total)})`,
-        false,
-      );
-    };
     xhr.onload = () => {
-      if (xhr.status >= 200 && xhr.status < 300) {
-        resolve(xhr.response);
-      } else {
-        const detail = (xhr.response && xhr.response.detail) || xhr.statusText || `HTTP ${xhr.status}`;
-        reject(new Error(`${xhr.status}: ${detail}`));
+      if (xhr.status >= 200 && xhr.status < 300) resolve(xhr.response);
+      else {
+        const d = (xhr.response && xhr.response.detail) || xhr.statusText || `HTTP ${xhr.status}`;
+        const err = new Error(`${xhr.status}: ${d}`);
+        err.status = xhr.status;
+        err.response = xhr.response;
+        reject(err);
       }
     };
     xhr.onerror = () => reject(new Error('network error'));
     xhr.onabort = () => reject(new Error('aborted'));
-    xhr.send(file);
+    xhr.send(blob);
   });
 }
+
+async function uploadOne(role, file) {
+  const storeKey = uploadStorageKey(role, file);
+  // Recover state. Trust server's view; localStorage is just a hint.
+  let offset = await fetchUploadStatus(role, file.name);
+  if (offset > file.size) offset = 0;  // sanity
+  const cached = Number(localStorage.getItem(storeKey) || 0);
+  if (cached !== offset) {
+    // Either a stale cache, or a different file → start from server's number.
+    localStorage.setItem(storeKey, String(offset));
+  }
+  if (offset > 0) {
+    setUploadStatus(
+      `Resuming ${file.name} (${role}) from ${formatBytes(offset)} / ${formatBytes(file.size)}…`,
+      false,
+    );
+  }
+
+  const t0 = performance.now();
+  let lastResponse = null;
+
+  while (offset < file.size) {
+    const end = Math.min(offset + CHUNK_SIZE, file.size);
+    const isFinal = end === file.size;
+
+    let attempt = 0;
+    while (true) {
+      try {
+        lastResponse = await sendChunk(role, file, offset, end, isFinal);
+        break;
+      } catch (err) {
+        // 409 = server's offset doesn't match ours → resync, then retry.
+        if (err.status === 409) {
+          const srv = await fetchUploadStatus(role, file.name);
+          offset = srv;
+          localStorage.setItem(storeKey, String(offset));
+          if (offset >= file.size) {
+            return { saved: file.name, role, bytes: file.size };
+          }
+          break;
+        }
+        attempt += 1;
+        if (attempt > MAX_RETRIES) throw err;
+        const wait = Math.min(1000 * 2 ** (attempt - 1), 10_000);
+        setUploadStatus(
+          `Chunk failed (${err.message}). Retry ${attempt}/${MAX_RETRIES} in ${wait/1000}s…`,
+          true,
+        );
+        await new Promise((r) => setTimeout(r, wait));
+      }
+    }
+
+    offset = lastResponse && Number.isFinite(lastResponse.received)
+      ? lastResponse.received
+      : end;
+    localStorage.setItem(storeKey, String(offset));
+
+    const elapsed = (performance.now() - t0) / 1000;
+    const speed = elapsed > 0 ? offset / elapsed : 0;
+    const pct = ((offset / file.size) * 100).toFixed(1);
+    setUploadStatus(
+      `Uploading ${file.name} (${role}): ${pct}%  ` +
+      `(${formatBytes(offset)} / ${formatBytes(file.size)}` +
+      (speed > 0 ? `, ${formatBytes(speed)}/s` : '') + `)`,
+      false,
+    );
+  }
+
+  // Done — clear cached offset.
+  localStorage.removeItem(storeKey);
+  return lastResponse || { saved: file.name, role, bytes: file.size };
+}
+
+// ---- big-file nudge: when the user picks a >2 GB file in upload mode,
+// suggest 'Use file on disk' instead so they don't sit through hours of
+// transfer when the server can see the file locally.
+function updateBigFileWarning() {
+  const banner = $('#bigfile-warning');
+  const flagged = [];
+  for (const role of ['topology', 'trajectory']) {
+    if (currentMode(role) !== 'upload') continue;
+    const inp = $(role === 'topology' ? '#file-topology' : '#file-trajectory');
+    const f = inp && inp.files[0];
+    if (f && f.size >= BIG_FILE_BYTES) {
+      flagged.push(`${role} (${formatBytes(f.size)})`);
+    }
+  }
+  if (!flagged.length) {
+    banner.style.display = 'none';
+    banner.textContent = '';
+    return;
+  }
+  banner.style.display = '';
+  banner.textContent =
+    `Heads up — ${flagged.join(' and ')} is large. ` +
+    `If the file already lives on this machine, switch the radio to "Use file on disk" and paste the absolute path; ` +
+    `that skips the transfer entirely. Uploads above ~2 GB are resumable but still slow.`;
+}
+$$('#file-topology, #file-trajectory').forEach(el =>
+  el.addEventListener('change', updateBigFileWarning)
+);
+$$('input[name="topo-mode"], input[name="traj-mode"]').forEach(el =>
+  el.addEventListener('change', updateBigFileWarning)
+);
 
 function formatBytes(b) {
   if (b < 1024)      return `${b} B`;

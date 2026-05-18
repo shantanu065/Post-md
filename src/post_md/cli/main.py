@@ -554,7 +554,29 @@ def web(
     typer.echo("Press CTRL+C to stop.")
     import uvicorn  # noqa: E402
 
-    uvicorn.run(fastapi_app, host=host, port=port, reload=reload, log_level="info")
+    # httptools + uvloop are bundled with `uvicorn[standard]` and give a
+    # measurable throughput boost on large streaming uploads vs the pure-
+    # Python defaults. timeout_keep_alive is bumped so a long-running
+    # chunked upload doesn't lose its keepalive between chunks.
+    server_kwargs = {
+        "host": host,
+        "port": port,
+        "reload": reload,
+        "log_level": "info",
+        "timeout_keep_alive": 300,
+    }
+    try:
+        import httptools  # noqa: F401
+        server_kwargs["http"] = "httptools"
+    except ImportError:
+        pass
+    try:
+        import uvloop  # noqa: F401
+        server_kwargs["loop"] = "uvloop"
+    except ImportError:
+        pass
+
+    uvicorn.run(fastapi_app, **server_kwargs)
 
 
 if __name__ == "__main__":

@@ -7,6 +7,7 @@ to extract coordinates, time, and unit-cell variables from AMBER files.
 
 from __future__ import annotations
 
+import mmap
 import struct
 from dataclasses import dataclass, field
 from pathlib import Path
@@ -165,13 +166,29 @@ def _triclinic_box(lengths, angles) -> np.ndarray:
 class AmberNetCDFTrajectory(Trajectory):
     def __init__(self, path: str | Path, n_atoms_expected: int):
         self.path = Path(path)
-        self._buf = self.path.read_bytes()
-        magic = self._buf[:4]
+        # Memory-map the file rather than reading it into RAM. AMBER
+        # production trajectories regularly hit hundreds of GB and won't
+        # fit in physical memory, but mmap costs only virtual address
+        # space and lets the kernel page bytes in on demand. The mapping
+        # is held on the instance and stays alive as long as any derived
+        # array view (np.frombuffer / stride_tricks) is referenced.
+        self._file = open(self.path, "rb")
+        try:
+            self._buf = mmap.mmap(
+                self._file.fileno(), 0, access=mmap.ACCESS_READ,
+            )
+        except (ValueError, OSError):
+            self._file.close()
+            raise
+
+        magic = bytes(self._buf[:4])
         if magic == b"CDF\x01":
             large = False
         elif magic == b"CDF\x02":
             large = True
         else:
+            self._buf.close()
+            self._file.close()
             raise ValueError(f"Not a NetCDF3 classic file: {self.path}")
 
         mv = memoryview(self._buf)
@@ -243,3 +260,165 @@ class AmberNetCDFTrajectory(Trajectory):
                 box = _triclinic_box(cl, angles).astype(np.float32)
 
         return Frame(index=index, coordinates=coords, box=box, time=time)
+
+    # ------------------------------------------------------------------
+    # Batched / slab reads
+    # ------------------------------------------------------------------
+
+    # Cap the peak working set while materialising the strided byte-swap
+    # batch by batch. 512 MiB is comfortable on every modern workstation
+    # but keeps a 100k-atom system streaming smoothly.
+    _SLAB_CHUNK_BYTES = 512 * 1024 * 1024
+
+    def coordinates_slab(
+        self,
+        start: int = 0,
+        stop: int | None = None,
+        selection: np.ndarray | slice | None = None,
+    ) -> np.ndarray:
+        """Return coordinates for a contiguous range of frames in one shot.
+
+        NetCDF3 record layout interleaves coordinates with time / cell
+        variables, so the per-frame coordinate slabs are not bytewise
+        contiguous. They are *evenly spaced* though — exactly ``_rec_size``
+        bytes apart — so we construct a strided view over the file buffer
+        and byte-swap into a native-endian buffer one chunk at a time.
+
+        Selection is applied per chunk, which is the difference between
+        2 GB and 200 GB of peak memory on a 100k-atom, 200k-frame system:
+        we never materialise the full-trajectory float32 cube.
+
+        Returns a contiguous ``(n_frames_in_range, n_sel_atoms, 3)`` float32
+        array in native byte order.
+        """
+        if stop is None:
+            stop = self.n_frames
+        start = max(0, int(start))
+        stop = min(self.n_frames, int(stop))
+
+        # Resolve selection up front so we know the output's n_sel.
+        if selection is None:
+            sel_arr: np.ndarray | None = None
+            sel_slice: slice | None = None
+            n_sel = self._n_atoms
+        elif isinstance(selection, slice):
+            sel_slice = selection
+            sel_arr = None
+            n_sel = len(range(*selection.indices(self._n_atoms)))
+        else:
+            sel_arr = np.asarray(selection, dtype=np.int64)
+            sel_slice = None
+            n_sel = int(sel_arr.size)
+
+        if stop <= start:
+            return np.empty((0, n_sel, 3), dtype=np.float32)
+
+        coord_var = self._vars["coordinates"]
+        if coord_var.nc_type != 5:  # NC_FLOAT
+            # Defensive: AMBER NetCDF coordinates are always float32 in
+            # practice. Fall back to per-frame read if a producer ever
+            # writes them otherwise.
+            return np.stack(
+                [self.read_frame(i).coordinates for i in range(start, stop)],
+                axis=0,
+            )
+
+        rec_size = self._rec_size
+        # How many frames worth of raw bytes fit in the chunk budget?
+        bytes_per_full_frame = self._n_atoms * 12  # 3 * float32 per atom
+        frames_per_chunk = max(1, self._SLAB_CHUNK_BYTES // max(bytes_per_full_frame, 1))
+
+        from numpy.lib.stride_tricks import as_strided
+        out = np.empty((stop - start, n_sel, 3), dtype=np.float32)
+
+        cursor = 0
+        chunk_start = start
+        buf_size = len(self._buf)
+        while chunk_start < stop:
+            chunk_stop = min(chunk_start + frames_per_chunk, stop)
+            n_chunk = chunk_stop - chunk_start
+            base_offset = coord_var.begin + chunk_start * rec_size
+            needed = (n_chunk - 1) * rec_size + self._n_atoms * 12
+            if base_offset + needed > buf_size:
+                # Truncated file — fall back to per-frame reads for the tail.
+                for i in range(chunk_start, chunk_stop):
+                    f = self.read_frame(i)
+                    coords_i = (
+                        f.coordinates if sel_slice is None and sel_arr is None
+                        else f.coordinates[sel_slice] if sel_slice is not None
+                        else f.coordinates[sel_arr]
+                    )
+                    out[cursor] = coords_i
+                    cursor += 1
+                chunk_start = chunk_stop
+                continue
+
+            raw = np.frombuffer(
+                self._buf, dtype=np.uint8, offset=base_offset, count=needed,
+            )
+            as_be = raw.view(">f4")
+            strided = as_strided(
+                as_be,
+                shape=(n_chunk, self._n_atoms, 3),
+                strides=(rec_size, 12, 4),
+                writeable=False,
+            )
+            # Materialise just this chunk into native float32, then narrow
+            # to the selection in one fused indexing op.
+            if sel_slice is None and sel_arr is None:
+                out[cursor : cursor + n_chunk] = strided.astype(np.float32, copy=True)
+            elif sel_slice is not None:
+                out[cursor : cursor + n_chunk] = (
+                    strided[:, sel_slice, :].astype(np.float32, copy=True)
+                )
+            else:
+                # Fancy indexing on the strided view materialises the chunk
+                # in-place via the byteswap inside astype below.
+                out[cursor : cursor + n_chunk] = (
+                    strided[:, sel_arr, :].astype(np.float32, copy=True)
+                )
+
+            cursor += n_chunk
+            chunk_start = chunk_stop
+
+        return out
+
+    def times_slab(self, start: int = 0, stop: int | None = None) -> np.ndarray:
+        """Per-frame times (ps) for the range [start, stop). float64."""
+        if stop is None:
+            stop = self.n_frames
+        start = max(0, int(start))
+        stop = min(self.n_frames, int(stop))
+        if stop <= start:
+            return np.empty(0, dtype=np.float64)
+
+        if "time" not in self._vars or not self._vars["time"].is_record:
+            return np.zeros(stop - start, dtype=np.float64)
+
+        time_var = self._vars["time"]
+        if time_var.nc_type != 5:  # NC_FLOAT
+            return np.fromiter(
+                (float(self._read_record("time", i, 1)[0]) for i in range(start, stop)),
+                dtype=np.float64,
+                count=stop - start,
+            )
+
+        from numpy.lib.stride_tricks import as_strided
+        rec_size = self._rec_size
+        base_offset = time_var.begin + start * rec_size
+        raw = np.frombuffer(self._buf, dtype=np.uint8, offset=base_offset)
+        needed = (stop - start - 1) * rec_size + 4
+        if needed > raw.size:
+            return np.fromiter(
+                (float(self._read_record("time", i, 1)[0]) for i in range(start, stop)),
+                dtype=np.float64,
+                count=stop - start,
+            )
+        as_be = raw[:needed].view(">f4")
+        strided = as_strided(
+            as_be,
+            shape=(stop - start,),
+            strides=(rec_size,),
+            writeable=False,
+        )
+        return strided.astype(np.float64, copy=True)
