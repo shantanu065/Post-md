@@ -383,6 +383,83 @@ class AmberNetCDFTrajectory(Trajectory):
 
         return out
 
+    def boxes_slab(self, start: int = 0, stop: int | None = None) -> tuple[np.ndarray, np.ndarray]:
+        """Per-frame unit-cell matrices for the range [start, stop).
+
+        Returns ``(boxes, has_box)`` where:
+          * ``boxes`` is ``(n_frames, 3, 3)`` float32 (zeros for frames
+            without a cell record).
+          * ``has_box`` is ``(n_frames,)`` bool — False means "no PBC
+            info on this frame, callers should skip imaging".
+
+        Uses the same strided-view trick as ``coordinates_slab`` so the
+        whole range is read in one mmap byte-swap instead of per-frame
+        disk seeks. That's the difference between a few seconds and tens
+        of minutes on a 200k-frame trajectory.
+        """
+        if stop is None:
+            stop = self.n_frames
+        start = max(0, int(start))
+        stop = min(self.n_frames, int(stop))
+        n = stop - start
+        if n <= 0:
+            return np.empty((0, 3, 3), dtype=np.float32), np.empty(0, dtype=bool)
+
+        from numpy.lib.stride_tricks import as_strided
+        rec_size = self._rec_size
+        boxes = np.zeros((n, 3, 3), dtype=np.float32)
+        has_box = np.zeros(n, dtype=bool)
+
+        cl_var = self._vars.get("cell_lengths")
+        if cl_var is None or not cl_var.is_record or cl_var.nc_type != 5:
+            return boxes, has_box
+
+        buf_size = len(self._buf)
+
+        def _read_three_floats(var, start_frame: int, n_frames: int) -> np.ndarray:
+            base = var.begin + start_frame * rec_size
+            needed = (n_frames - 1) * rec_size + 12
+            if base + needed > buf_size:
+                # File truncated mid-cell record — fall back to safe zeros.
+                return np.zeros((n_frames, 3), dtype=np.float64)
+            raw = np.frombuffer(self._buf, dtype=np.uint8, offset=base, count=needed)
+            as_be = raw.view(">f4")
+            strided = as_strided(
+                as_be,
+                shape=(n_frames, 3),
+                strides=(rec_size, 4),
+                writeable=False,
+            )
+            return strided.astype(np.float64, copy=True)
+
+        cell_lengths = _read_three_floats(cl_var, start, n)
+
+        ca_var = self._vars.get("cell_angles")
+        if ca_var is not None and ca_var.is_record and ca_var.nc_type == 5:
+            cell_angles = _read_three_floats(ca_var, start, n)
+        else:
+            cell_angles = np.full((n, 3), 90.0, dtype=np.float64)
+
+        # A frame's "has box" is true if its lengths look real (positive).
+        valid = (cell_lengths > 0).all(axis=1)
+        has_box[:] = valid
+
+        # Orthorhombic fast path — most AMBER simulations use truncated
+        # octahedron or rectangular cells, both of which keep all angles
+        # near 90° on the principal axes.
+        ortho = valid & np.all(np.abs(cell_angles - 90.0) < 0.5, axis=1)
+        if ortho.any():
+            ortho_idx = np.where(ortho)[0]
+            for k in ortho_idx:
+                boxes[k] = np.diag(cell_lengths[k]).astype(np.float32)
+
+        # Triclinic frames — rebuild the cell matrix one frame at a time.
+        tri = valid & ~ortho
+        for k in np.where(tri)[0]:
+            boxes[k] = _triclinic_box(cell_lengths[k], cell_angles[k]).astype(np.float32)
+
+        return boxes, has_box
+
     def times_slab(self, start: int = 0, stop: int | None = None) -> np.ndarray:
         """Per-frame times (ps) for the range [start, stop). float64."""
         if stop is None:

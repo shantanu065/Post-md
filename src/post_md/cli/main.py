@@ -123,6 +123,10 @@ def _build_style(
     dpi: int,
     font_size: int,
     default_figsize: tuple[float, float] = (7.5, 4.5),
+    xmin: float | None = None,
+    xmax: float | None = None,
+    ymin: float | None = None,
+    ymax: float | None = None,
 ):
     from post_md.plotting import PlotStyle
 
@@ -141,6 +145,10 @@ def _build_style(
         figsize=size,
         dpi=dpi,
         font_size=font_size,
+        xmin=xmin,
+        xmax=xmax,
+        ymin=ymin,
+        ymax=ymax,
     )
 
 
@@ -252,6 +260,10 @@ def rmsd(
     figsize: str | None = typer.Option(None, "--figsize", help="e.g. '8x5'", rich_help_panel=PLOT_PANEL),
     dpi: int = typer.Option(150, "--dpi", rich_help_panel=PLOT_PANEL),
     font_size: int = typer.Option(12, "--font-size", rich_help_panel=PLOT_PANEL),
+    xmin: float | None = typer.Option(None, "--xmin", help="Pin x-axis lower bound (auto if blank).", rich_help_panel=PLOT_PANEL),
+    xmax: float | None = typer.Option(None, "--xmax", help="Pin x-axis upper bound (auto if blank).", rich_help_panel=PLOT_PANEL),
+    ymin: float | None = typer.Option(None, "--ymin", help="Pin y-axis lower bound (auto if blank).", rich_help_panel=PLOT_PANEL),
+    ymax: float | None = typer.Option(None, "--ymax", help="Pin y-axis upper bound (auto if blank).", rich_help_panel=PLOT_PANEL),
 ) -> None:
     """Compute per-frame RMSD (Å) vs a reference frame after Kabsch alignment."""
     from post_md.analysis.rmsd import rmsd_trajectory
@@ -279,13 +291,14 @@ def rmsd(
             linewidth=linewidth,
             legend_label=legend_label, show_legend=not no_legend and legend_label is not None,
             grid=not no_grid, figsize=figsize, dpi=dpi, font_size=font_size,
+            xmin=xmin, xmax=xmax, ymin=ymin, ymax=ymax,
         )
         png = _plot_path(output)
         plot_line(
             x, values, png, style=style,
             default_xlabel=x_label_default,
             default_ylabel="RMSD (Å)",
-            default_title=f"RMSD vs frame {reference}  |  {selection!r}",
+            default_title="RMSD over time",
         )
         typer.echo(f"Wrote {png}")
 
@@ -297,6 +310,10 @@ def rmsf(
     selection: str = typer.Option("protein", "-s", "--selection"),
     output: str = typer.Option("rmsf.dat", "-o", "--output"),
     plot: bool = typer.Option(True, "--plot/--no-plot"),
+    per_atom: bool = typer.Option(
+        False, "--per-atom",
+        help="Emit raw per-atom RMSF instead of the mass-weighted per-residue mean.",
+    ),
     # ---- plot customisation ----
     title: str | None = typer.Option(None, "--title", rich_help_panel=PLOT_PANEL),
     xlabel: str | None = typer.Option(None, "--xlabel", rich_help_panel=PLOT_PANEL),
@@ -310,16 +327,46 @@ def rmsf(
     dpi: int = typer.Option(150, "--dpi", rich_help_panel=PLOT_PANEL),
     font_size: int = typer.Option(12, "--font-size", rich_help_panel=PLOT_PANEL),
 ) -> None:
-    """Compute per-atom RMSF (Å) after aligning each frame to the mean structure."""
+    """Compute RMSF (Å). Default: one value per residue (mass-weighted mean
+    of its atoms), matching cpptraj ``byres`` / GROMACS ``gmx rmsf -res``.
+    Use ``--per-atom`` to emit the underlying per-atom array instead.
+    """
     from post_md.analysis.rmsf import rmsf as rmsf_fn
 
     u = _load(topology, trajectory)
     ag = u.select_atoms(selection)
     coords = ag.coordinates()
-    values = rmsf_fn(coords, weights=_maybe_mass_weights(ag))
+    atom_values = rmsf_fn(coords, weights=_maybe_mass_weights(ag))
 
-    data = np.column_stack([ag.indices.astype(np.float64), values])
-    _write_table(output, ["Atom index", "RMSF (A)"], data, title="RMSF")
+    if per_atom:
+        x_vals = ag.indices.astype(np.float64)
+        values = atom_values
+        x_label = "Atom index"
+        data_header = "Atom index"
+        title_default = f"RMSF per atom  |  {selection!r}"
+    else:
+        residue_ids = ag.residue_ids
+        unique_resids, first_idx = np.unique(residue_ids, return_index=True)
+        unique_resids = unique_resids[np.argsort(first_idx)]
+        masses = ag.masses.astype(np.float64)
+        use_masses = float(masses.sum()) > 0
+        values = np.empty(unique_resids.size, dtype=np.float64)
+        for k, rid in enumerate(unique_resids):
+            mask = residue_ids == rid
+            vals = atom_values[mask]
+            if use_masses:
+                w = masses[mask]
+                w_sum = float(w.sum())
+                values[k] = float((vals * w).sum() / w_sum) if w_sum > 0 else float(vals.mean())
+            else:
+                values[k] = float(vals.mean())
+        x_vals = unique_resids.astype(np.float64)
+        x_label = "Residue"
+        data_header = "Residue"
+        title_default = f"RMSF per residue  |  {selection!r}"
+
+    data = np.column_stack([x_vals, values])
+    _write_table(output, [data_header, "RMSF (A)"], data, title="RMSF")
     typer.echo(f"Wrote {output} ({len(values)} rows)")
 
     if plot:
@@ -334,10 +381,10 @@ def rmsf(
         )
         png = _plot_path(output)
         plot_line(
-            ag.indices, values, png, style=style,
-            default_xlabel="Atom index",
+            x_vals, values, png, style=style,
+            default_xlabel=x_label,
             default_ylabel="RMSF (Å)",
-            default_title=f"RMSF  |  {selection!r}",
+            default_title=title_default,
         )
         typer.echo(f"Wrote {png}")
 

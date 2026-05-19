@@ -17,6 +17,7 @@ import matplotlib
 matplotlib.use("Agg")
 import matplotlib.pyplot as plt  # noqa: E402
 import numpy as np  # noqa: E402
+from matplotlib.ticker import AutoMinorLocator, MaxNLocator  # noqa: E402
 
 
 @dataclass
@@ -37,6 +38,13 @@ class PlotStyle:
     figsize: tuple[float, float] = (7.5, 4.5)
     dpi: int = 150
     font_size: int = 12
+    # Axis range overrides — any of the four can be left as None to let
+    # matplotlib auto-scale that bound. Half-open ranges work too
+    # (e.g. ymin=0, ymax=None pins the floor but lets the top float).
+    xmin: float | None = None
+    xmax: float | None = None
+    ymin: float | None = None
+    ymax: float | None = None
     # Multi-panel plot accents (used by plot_pca / plot_clusters):
     accent_color: str | None = None
     cmap: str | None = None
@@ -80,14 +88,136 @@ def plot_line(
         color=style.color,
         label=style.legend_label,
     )
+    # Snug fit to data: removes matplotlib's default ~5% breathing room so
+    # the curve starts at the y-axis with no visible gap. User-supplied
+    # x/y min-max overrides applied below take precedence.
+    ax.margins(x=0, y=0)
     ax.set_xlabel(style.xlabel or default_xlabel)
     ax.set_ylabel(style.ylabel or default_ylabel)
     ax.set_title(style.title or default_title)
+    _apply_axis_limits(ax, style)
+    # Default for non-negative quantities (RMSD, RMSF, Rg are all ≥ 0):
+    # extend each axis down to 0 if the user hasn't pinned the lower
+    # bound. Without this the axis would start at the data minimum, so
+    # "0" never appears on the tick scale.
+    x_arr = np.asarray(x)
+    y_arr = np.asarray(y)
+    if style.xmin is None and x_arr.size and float(x_arr.min()) >= 0:
+        ax.set_xlim(left=0)
+    if style.ymin is None and y_arr.size and float(y_arr.min()) >= 0:
+        ax.set_ylim(bottom=0)
+    _apply_publication_ticks(ax)
     if style.grid:
         ax.grid(alpha=0.3)
     if style.show_legend or style.legend_label:
         ax.legend(loc="best", frameon=True)
     _save(fig, output_path, style.dpi)
+
+
+def plot_lines_multi(
+    curves: list[tuple[np.ndarray, np.ndarray]],
+    labels: list[str],
+    output_path: str | Path,
+    style: PlotStyle | None = None,
+    default_title: str = "",
+    default_xlabel: str = "Frame",
+    default_ylabel: str = "Value",
+    cmap: str | None = None,
+    colors: list[str | None] | None = None,
+) -> None:
+    """Plot several line curves on a single axis with distinct colors + legend.
+
+    Used by multi-system comparison runs (WT vs mutants etc.). Each curve
+    is one ``(x, y)`` pair; ``labels`` is its display name in the legend.
+
+    Color resolution per curve, in order: explicit ``colors[i]`` (any
+    matplotlib color spec, ``None`` to fall back) → the supplied / styled
+    colormap → tab10 default. The fallback keeps multi-system runs
+    readable when only some systems have a colour assigned.
+    """
+    style = style or PlotStyle()
+    _apply_rc(style)
+
+    cmap_name = cmap or style.cmap or "tab10"
+    palette = plt.get_cmap(cmap_name)
+
+    fig, ax = plt.subplots(figsize=style.figsize)
+    x_min = float("inf")
+    x_max = float("-inf")
+    y_min = float("inf")
+    y_max = float("-inf")
+    for i, ((cx, cy), label) in enumerate(zip(curves, labels, strict=False)):
+        cx_arr = np.asarray(cx)
+        cy_arr = np.asarray(cy)
+        if cx_arr.size == 0:
+            continue
+        per_curve = (colors[i] if (colors is not None and i < len(colors)) else None)
+        color = per_curve if per_curve else (
+            palette(i % palette.N) if palette.N else None
+        )
+        ax.plot(
+            cx_arr, cy_arr,
+            linewidth=style.linewidth,
+            color=color,
+            label=label,
+        )
+        x_min = min(x_min, float(cx_arr.min()))
+        x_max = max(x_max, float(cx_arr.max()))
+        y_min = min(y_min, float(cy_arr.min()))
+        y_max = max(y_max, float(cy_arr.max()))
+
+    ax.margins(x=0, y=0)
+    ax.set_xlabel(style.xlabel or default_xlabel)
+    ax.set_ylabel(style.ylabel or default_ylabel)
+    ax.set_title(style.title or default_title)
+    _apply_axis_limits(ax, style)
+    # Same 0-start default as plot_line — RMSD/RMSF/Rg are non-negative.
+    if style.xmin is None and x_min != float("inf") and x_min >= 0:
+        ax.set_xlim(left=0)
+    if style.ymin is None and y_min != float("inf") and y_min >= 0:
+        ax.set_ylim(bottom=0)
+    _apply_publication_ticks(ax)
+    if style.grid:
+        ax.grid(alpha=0.3)
+    ax.legend(loc="best", frameon=True)
+    _save(fig, output_path, style.dpi)
+
+
+def _apply_publication_ticks(ax) -> None:
+    """Major ticks include the axis boundaries; minor ticks fill the gaps.
+
+    matplotlib's default ``AutoLocator`` prunes ticks at the axis edges
+    when it thinks they'd collide with adjacent axis labels — which is
+    why a snug-fit RMSD plot misses the leading "0" on the time axis.
+    ``MaxNLocator(prune=None)`` keeps the boundary tick; ``AutoMinorLocator``
+    adds the in-between tick marks that match a publication aesthetic.
+    """
+    for axis in (ax.xaxis, ax.yaxis):
+        axis.set_major_locator(
+            MaxNLocator(nbins="auto", steps=[1, 2, 2.5, 5, 10], prune=None)
+        )
+        axis.set_minor_locator(AutoMinorLocator())
+    # Inward ticks on the left + bottom axes only — no mirrored ticks
+    # on the top / right spines.
+    ax.tick_params(which="both", direction="in", top=False, right=False)
+    ax.tick_params(which="major", length=5, width=0.9)
+    ax.tick_params(which="minor", length=2.5, width=0.6)
+
+
+def _apply_axis_limits(ax, style: PlotStyle) -> None:
+    """Pin any of the four bounds the user set, leave the rest auto-scaled."""
+    if style.xmin is not None or style.xmax is not None:
+        cur_lo, cur_hi = ax.get_xlim()
+        ax.set_xlim(
+            style.xmin if style.xmin is not None else cur_lo,
+            style.xmax if style.xmax is not None else cur_hi,
+        )
+    if style.ymin is not None or style.ymax is not None:
+        cur_lo, cur_hi = ax.get_ylim()
+        ax.set_ylim(
+            style.ymin if style.ymin is not None else cur_lo,
+            style.ymax if style.ymax is not None else cur_hi,
+        )
 
 
 def plot_pca(

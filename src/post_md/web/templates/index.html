@@ -12,23 +12,6 @@
   h1 { margin-bottom: 0.2rem; }
   .sub { color: var(--pico-muted-color); margin-top: 0; }
   article { margin-bottom: 1.5rem; }
-  nav.tabs { display: flex; gap: 0.25rem; flex-wrap: wrap; margin-bottom: 1rem; }
-  nav.tabs button {
-    background: var(--pico-card-background-color);
-    border: 1px solid var(--pico-card-border-color);
-    color: var(--pico-color);
-    padding: 0.4rem 0.9rem;
-    border-radius: 6px 6px 0 0;
-    cursor: pointer;
-    font-size: 0.95rem;
-  }
-  nav.tabs button.active {
-    background: var(--pico-primary);
-    color: var(--pico-primary-inverse);
-    border-color: var(--pico-primary);
-  }
-  .tab-panel { display: none; }
-  .tab-panel.active { display: block; }
   .grid-2 { display: grid; grid-template-columns: 1fr 1fr; gap: 0.7rem 1rem; }
   .grid-3 { display: grid; grid-template-columns: 1fr 1fr 1fr; gap: 0.7rem 1rem; }
   @media (max-width: 720px) {
@@ -36,17 +19,14 @@
   }
   label small { color: var(--pico-muted-color); }
   fieldset { border: 1px solid var(--pico-card-border-color); padding: 0.7rem 0.9rem; margin: 0 0 0.7rem 0; border-radius: 6px; background: var(--pico-card-background-color); }
-  fieldset > strong { display: inline-block; margin-bottom: 0.2rem; }
+  fieldset > legend { padding: 0 0.3rem; font-weight: 600; }
   .mode-row { display: flex; gap: 1.2rem; margin: 0.35rem 0 0.45rem 0; font-size: 0.92rem; }
   .mode-row label { display: inline-flex; align-items: center; gap: 0.3rem; margin: 0; cursor: pointer; }
   .mode-pane input[type="text"] { font-family: var(--pico-font-family-monospace); font-size: 0.92rem; }
-  details { background: var(--pico-card-sectioning-background-color); padding: 0.6rem 0.9rem; border-radius: 6px; margin: 0.6rem 0; }
-  details > summary { cursor: pointer; font-weight: 600; }
-  details > div { margin-top: 0.75rem; }
   .status-line { font-family: var(--pico-font-family-monospace); font-size: 0.9rem; color: var(--pico-muted-color); }
   .pill { display: inline-block; background: var(--pico-card-sectioning-background-color); padding: 0.15rem 0.55rem; border-radius: 999px; font-size: 0.82rem; margin-right: 0.3rem; }
   .pill.ok { background: var(--pico-primary); color: var(--pico-primary-inverse); }
-  .result-block img { max-width: 100%; border: 1px solid var(--pico-card-border-color); border-radius: 6px; }
+  .pill.stale { background: var(--pico-del-color); color: #fff; }
   .files-list a { display: inline-block; margin-right: 1rem; }
   .error { color: var(--pico-del-color); }
   .muted { color: var(--pico-muted-color); }
@@ -77,6 +57,25 @@
   .fb-go { display: flex; gap: 0.3rem; padding: 0.4rem 0.7rem; border-top: 1px solid var(--pico-card-border-color); }
   .fb-go input { flex: 1; font-size: 0.85rem; }
   .fb-go button { padding: 0.15rem 0.55rem; font-size: 0.8rem; }
+
+  /* multi-system + analysis layout */
+  .system-row { padding: 0.6rem 0.8rem; border: 1px solid var(--pico-card-border-color); border-radius: 6px; margin-bottom: 0.6rem; background: var(--pico-card-background-color); }
+  .system-row > header { display: flex; justify-content: space-between; align-items: center; margin-bottom: 0.4rem; }
+  .system-row .label-input { width: 12rem; font-weight: 600; }
+  .system-row .system-stale { color: var(--pico-del-color); font-size: 0.85rem; margin-top: 0.3rem; }
+  .analysis-block { border: 1px solid var(--pico-card-border-color); border-radius: 6px; margin-bottom: 0.6rem; background: var(--pico-card-background-color); }
+  .analysis-block > header { display: flex; align-items: center; gap: 0.6rem; padding: 0.5rem 0.8rem; cursor: pointer; }
+  .analysis-block > header input[type="checkbox"] { margin: 0; transform: scale(1.1); }
+  .analysis-block > header .title { font-weight: 600; }
+  .analysis-block > header .desc { color: var(--pico-muted-color); font-size: 0.88rem; }
+  .analysis-block .params { padding: 0.2rem 0.8rem 0.8rem 0.8rem; display: none; border-top: 1px solid var(--pico-card-border-color); }
+  .analysis-block.expanded .params { display: block; }
+  .result-block { border: 1px solid var(--pico-card-border-color); border-radius: 6px; padding: 0.6rem 0.8rem; margin-bottom: 0.6rem; background: var(--pico-card-sectioning-background-color); }
+  .result-block h4 { margin: 0 0 0.4rem 0; }
+  .result-block img { max-width: 100%; border: 1px solid var(--pico-card-border-color); border-radius: 6px; }
+  details { background: var(--pico-card-sectioning-background-color); padding: 0.6rem 0.9rem; border-radius: 6px; margin: 0.6rem 0; }
+  details > summary { cursor: pointer; font-weight: 600; }
+  details > div { margin-top: 0.75rem; }
 </style>
 </head>
 <body>
@@ -84,61 +83,23 @@
 
 <header>
   <h1>Post_MD</h1>
-  <p class="sub">Rapid MD trajectory analysis — PCA, clustering, RMSD/RMSF/Rg. Every option from the <code>post-md</code> CLI is on this page.</p>
+  <p class="sub">Rapid MD trajectory analysis — PCA, clustering, RMSD/RMSF/Rg, with multi-system overlay comparison.</p>
 </header>
 
 <!-- =========================================================== -->
-<!-- 1. Upload                                                    -->
+<!-- 1. Systems                                                   -->
 <!-- =========================================================== -->
-<article id="upload-card">
-  <header><strong>1. Provide topology + trajectory</strong></header>
+<article id="systems-card">
+  <header><strong>1. Systems</strong></header>
   <p class="muted" style="margin-top: -0.4rem;">
-    Two options per file. <strong>Upload</strong> sends the file to this server in resumable chunks — restartable on network drops, but still slow for very large trajectories. <strong>Use file on disk</strong> just records the absolute path — no upload, no copy — ideal for multi-GB / TB files when the server can already see them on disk.
+    Add one system per trajectory you want to compare (e.g. WT, Mutant 1, Mutant 2). Each gets its own topology + trajectory file. When more than one system is registered, RMSD / RMSF / Rg plots will overlay all of them on a single graph with a legend. PCA + Cluster run separately per system.
   </p>
-  <div id="bigfile-warning" class="status-line error" style="display:none; margin: 0.3rem 0 0.6rem 0;"></div>
-
-  <!-- Topology row -->
-  <fieldset>
-    <strong>Topology</strong> &nbsp;<small class="muted">.prmtop / .parm7 (AMBER), .gro (GROMACS), .pdb</small>
-    <div class="mode-row">
-      <label><input type="radio" name="topo-mode" value="upload" checked> Upload</label>
-      <label><input type="radio" name="topo-mode" value="path"> Use file on disk</label>
-    </div>
-    <div class="mode-pane" data-role="topology" data-mode="upload">
-      <input type="file" id="file-topology" accept=".prmtop,.parm7,.gro,.pdb">
-    </div>
-    <div class="mode-pane" data-role="topology" data-mode="path" style="display:none">
-      <div class="path-row">
-        <input type="text" id="path-topology" placeholder="e.g. /home/you/sims/system.prmtop">
-        <button type="button" class="btn-browse" data-role="topology">Browse…</button>
-      </div>
-      <div class="file-browser" id="browser-topology" style="display:none"></div>
-    </div>
-  </fieldset>
-
-  <!-- Trajectory row -->
-  <fieldset>
-    <strong>Trajectory</strong> &nbsp;<small class="muted">.nc / .mdcrd (AMBER), .xtc / .trr / .gro (GROMACS)</small>
-    <div class="mode-row">
-      <label><input type="radio" name="traj-mode" value="upload" checked> Upload</label>
-      <label><input type="radio" name="traj-mode" value="path"> Use file on disk</label>
-    </div>
-    <div class="mode-pane" data-role="trajectory" data-mode="upload">
-      <input type="file" id="file-trajectory" accept=".nc,.ncdf,.mdcrd,.crd,.xtc,.trr,.gro">
-    </div>
-    <div class="mode-pane" data-role="trajectory" data-mode="path" style="display:none">
-      <div class="path-row">
-        <input type="text" id="path-trajectory" placeholder="e.g. /home/you/runs/prod.xtc">
-        <button type="button" class="btn-browse" data-role="trajectory">Browse…</button>
-      </div>
-      <div class="file-browser" id="browser-trajectory" style="display:none"></div>
-    </div>
-  </fieldset>
-
+  <div id="systems-list"></div>
   <div class="run-row">
-    <button id="btn-upload">Use selected files</button>
+    <button id="btn-add-system" class="secondary">+ Add system</button>
+    <button id="btn-save-systems">Save systems</button>
     <button id="btn-reset" class="secondary outline">Reset workspace</button>
-    <span id="upload-status" class="status-line"></span>
+    <span id="systems-status" class="status-line"></span>
   </div>
   <p class="status-line" style="margin-top: 0.5rem;">
     <span id="status-pills"></span>
@@ -146,226 +107,330 @@
 </article>
 
 <!-- =========================================================== -->
-<!-- 2. Analysis tabs                                             -->
+<!-- 2. Analyses                                                  -->
 <!-- =========================================================== -->
-<article id="analysis-card">
-  <header><strong>2. Choose an analysis</strong></header>
+<article id="analyses-card">
+  <header><strong>2. Analyses</strong></header>
+  <p class="muted" style="margin-top: -0.4rem;">
+    Tick every analysis you want, fill in its parameters, then hit <strong>Run analysis</strong> once. All ticked analyses run across all systems in a single batch.
+  </p>
 
-  <nav class="tabs" id="tabs">
-    <button data-tab="info"    class="active">Info</button>
-    <button data-tab="rmsd">RMSD</button>
-    <button data-tab="rmsf">RMSF</button>
-    <button data-tab="rg">Rg</button>
-    <button data-tab="pca">PCA</button>
-    <button data-tab="cluster">Cluster</button>
-  </nav>
+  <!-- INFO -->
+  <div class="analysis-block" data-analysis="info">
+    <header>
+      <input type="checkbox" data-toggle="info">
+      <span class="title">Info</span>
+      <span class="desc">— atom / residue / bond / frame counts for system 1.</span>
+    </header>
+  </div>
 
-  <!-- ------------------ INFO ------------------ -->
-  <section class="tab-panel active" id="panel-info">
-    <p class="muted">Quick summary of the uploaded system (atom / residue / bond / frame counts).</p>
-    <div class="run-row">
-      <button class="btn-run" data-action="info">Run info</button>
-      <span class="status-line run-status"></span>
-    </div>
-    <div class="result-block" data-result="info"></div>
-  </section>
-
-  <!-- ------------------ RMSD ------------------ -->
-  <section class="tab-panel" id="panel-rmsd">
-    <p class="muted">Per-frame RMSD vs a reference frame after Kabsch alignment.</p>
-    <div class="grid-2">
-      <label>Atom selection<br><input type="text" name="selection" value="name CA" data-tab="rmsd"></label>
-      <label>Reference frame<br><input type="number" name="reference" value="0" min="0" data-tab="rmsd"></label>
-      <label>Output format<br>
-        <select name="output_ext" data-tab="rmsd">
-          <option value="dat">.dat (cpptraj)</option>
-          <option value="xvg">.xvg (GROMACS xmgrace)</option>
-          <option value="csv">.csv</option>
-        </select>
-      </label>
-      <label>Time step per frame (ps) <small>— blank uses frame index</small><br>
-        <input type="number" name="dt" step="any" placeholder="e.g. 2.0" data-tab="rmsd"></label>
-      <label>Time unit<br>
-        <select name="time_unit" data-tab="rmsd">
-          <option value="ps">ps</option><option value="ns">ns</option>
-          <option value="fs">fs</option><option value="us">μs</option>
-        </select>
-      </label>
-    </div>
-    <details>
-      <summary>Plot customisation</summary>
-      <div class="grid-3">
-        <label>Title<br><input type="text" name="title" data-tab="rmsd"></label>
-        <label>X-axis label<br><input type="text" name="xlabel" data-tab="rmsd"></label>
-        <label>Y-axis label<br><input type="text" name="ylabel" data-tab="rmsd"></label>
-        <label>Line color <small>(name or hex)</small><br><input type="text" name="color" placeholder="#1f77b4" data-tab="rmsd"></label>
-        <label>Line width<br><input type="number" name="linewidth" value="1.6" step="0.1" data-tab="rmsd"></label>
-        <label>Legend label<br><input type="text" name="legend_label" data-tab="rmsd"></label>
-        <label>Figure size <small>(WxH inches)</small><br><input type="text" name="figsize" placeholder="7.5x4.5" data-tab="rmsd"></label>
-        <label>DPI<br><input type="number" name="dpi" value="150" min="50" max="600" data-tab="rmsd"></label>
-        <label>Font size<br><input type="number" name="font_size" value="12" min="6" max="32" data-tab="rmsd"></label>
-        <label><input type="checkbox" name="no_grid" data-tab="rmsd"> Hide grid</label>
-        <label><input type="checkbox" name="no_plot" data-tab="rmsd"> Skip plot (data only)</label>
+  <!-- RMSD -->
+  <div class="analysis-block" data-analysis="rmsd">
+    <header>
+      <input type="checkbox" data-toggle="rmsd">
+      <span class="title">RMSD</span>
+      <span class="desc">— per-frame RMSD vs a reference frame after Kabsch alignment.</span>
+    </header>
+    <div class="params">
+      <div class="grid-2">
+        <label>Atom selection<br><input type="text" name="selection" value="name CA" data-tab="rmsd"></label>
+        <label>Reference frame<br><input type="number" name="reference" value="0" min="0" data-tab="rmsd"></label>
+        <label>Output format<br>
+          <select name="output_ext" data-tab="rmsd">
+            <option value="dat">.dat (cpptraj)</option>
+            <option value="xvg">.xvg (GROMACS xmgrace)</option>
+            <option value="csv">.csv</option>
+          </select>
+        </label>
+        <label>Time unit<br>
+          <select name="time_unit" data-tab="rmsd">
+            <option value="ps">ps</option><option value="ns">ns</option>
+            <option value="fs">fs</option><option value="us">μs</option>
+          </select>
+        </label>
       </div>
-    </details>
-    <div class="run-row">
-      <button class="btn-run" data-action="rmsd">Run RMSD</button>
-      <span class="status-line run-status"></span>
+      <details>
+        <summary>Plot customisation</summary>
+        <div class="grid-3">
+          <label>Title<br><input type="text" name="title" data-tab="rmsd"></label>
+          <label>X-axis label<br><input type="text" name="xlabel" data-tab="rmsd"></label>
+          <label>Y-axis label<br><input type="text" name="ylabel" data-tab="rmsd"></label>
+          <label>Line color<br><input type="text" name="color" placeholder="#1f77b4 (single-system)" data-tab="rmsd"></label>
+          <label>Line width<br><input type="number" name="linewidth" value="1.6" step="0.1" data-tab="rmsd"></label>
+          <label>Legend label<br><input type="text" name="legend_label" data-tab="rmsd"></label>
+          <label>X min<br><input type="number" step="any" name="xmin" data-tab="rmsd"></label>
+          <label>X max<br><input type="number" step="any" name="xmax" data-tab="rmsd"></label>
+          <label>Y min<br><input type="number" step="any" name="ymin" data-tab="rmsd"></label>
+          <label>Y max<br><input type="number" step="any" name="ymax" data-tab="rmsd"></label>
+          <label>Figure size<br><input type="text" name="figsize" placeholder="7.5x4.5" data-tab="rmsd"></label>
+          <label>DPI<br><input type="number" name="dpi" value="150" data-tab="rmsd"></label>
+          <label>Font size<br><input type="number" name="font_size" value="12" data-tab="rmsd"></label>
+          <label><input type="checkbox" name="no_grid" data-tab="rmsd"> Hide grid</label>
+          <label><input type="checkbox" name="no_plot" data-tab="rmsd"> Skip plot (data only)</label>
+        </div>
+      </details>
     </div>
-    <div class="result-block" data-result="rmsd"></div>
-  </section>
+  </div>
 
-  <!-- ------------------ RMSF ------------------ -->
-  <section class="tab-panel" id="panel-rmsf">
-    <p class="muted">Per-atom RMS fluctuation about the trajectory mean structure.</p>
-    <div class="grid-2">
-      <label>Atom selection<br><input type="text" name="selection" value="protein" data-tab="rmsf"></label>
-      <label>Output format<br>
-        <select name="output_ext" data-tab="rmsf">
-          <option value="dat">.dat</option><option value="xvg">.xvg</option><option value="csv">.csv</option>
-        </select>
-      </label>
-    </div>
-    <details>
-      <summary>Plot customisation</summary>
-      <div class="grid-3">
-        <label>Title<br><input type="text" name="title" data-tab="rmsf"></label>
-        <label>X-axis label<br><input type="text" name="xlabel" data-tab="rmsf"></label>
-        <label>Y-axis label<br><input type="text" name="ylabel" data-tab="rmsf"></label>
-        <label>Line color<br><input type="text" name="color" data-tab="rmsf"></label>
-        <label>Line width<br><input type="number" name="linewidth" value="1.6" step="0.1" data-tab="rmsf"></label>
-        <label>Legend label<br><input type="text" name="legend_label" data-tab="rmsf"></label>
-        <label>Figure size<br><input type="text" name="figsize" placeholder="7.5x4.5" data-tab="rmsf"></label>
-        <label>DPI<br><input type="number" name="dpi" value="150" data-tab="rmsf"></label>
-        <label>Font size<br><input type="number" name="font_size" value="12" data-tab="rmsf"></label>
-        <label><input type="checkbox" name="no_grid" data-tab="rmsf"> Hide grid</label>
-        <label><input type="checkbox" name="no_plot" data-tab="rmsf"> Skip plot</label>
+  <!-- RMSF -->
+  <div class="analysis-block" data-analysis="rmsf">
+    <header>
+      <input type="checkbox" data-toggle="rmsf">
+      <span class="title">RMSF</span>
+      <span class="desc">— per-residue (default) or per-atom fluctuation about the mean structure.</span>
+    </header>
+    <div class="params">
+      <div class="grid-2">
+        <label>Atom selection<br><input type="text" name="selection" value="protein" data-tab="rmsf"></label>
+        <label>Output format<br>
+          <select name="output_ext" data-tab="rmsf">
+            <option value="dat">.dat</option><option value="xvg">.xvg</option><option value="csv">.csv</option>
+          </select>
+        </label>
+        <label><input type="checkbox" name="per_atom" data-tab="rmsf"> Per-atom <small>(default: per-residue, mass-weighted mean)</small></label>
       </div>
-    </details>
-    <div class="run-row">
-      <button class="btn-run" data-action="rmsf">Run RMSF</button>
-      <span class="status-line run-status"></span>
+      <details>
+        <summary>Plot customisation</summary>
+        <div class="grid-3">
+          <label>Title<br><input type="text" name="title" data-tab="rmsf"></label>
+          <label>X-axis label<br><input type="text" name="xlabel" data-tab="rmsf"></label>
+          <label>Y-axis label<br><input type="text" name="ylabel" data-tab="rmsf"></label>
+          <label>Line color<br><input type="text" name="color" data-tab="rmsf"></label>
+          <label>Line width<br><input type="number" name="linewidth" value="1.6" step="0.1" data-tab="rmsf"></label>
+          <label>Legend label<br><input type="text" name="legend_label" data-tab="rmsf"></label>
+          <label>X min<br><input type="number" step="any" name="xmin" data-tab="rmsf"></label>
+          <label>X max<br><input type="number" step="any" name="xmax" data-tab="rmsf"></label>
+          <label>Y min<br><input type="number" step="any" name="ymin" data-tab="rmsf"></label>
+          <label>Y max<br><input type="number" step="any" name="ymax" data-tab="rmsf"></label>
+          <label>Figure size<br><input type="text" name="figsize" placeholder="7.5x4.5" data-tab="rmsf"></label>
+          <label>DPI<br><input type="number" name="dpi" value="150" data-tab="rmsf"></label>
+          <label>Font size<br><input type="number" name="font_size" value="12" data-tab="rmsf"></label>
+          <label><input type="checkbox" name="no_grid" data-tab="rmsf"> Hide grid</label>
+          <label><input type="checkbox" name="no_plot" data-tab="rmsf"> Skip plot</label>
+        </div>
+      </details>
     </div>
-    <div class="result-block" data-result="rmsf"></div>
-  </section>
+  </div>
 
-  <!-- ------------------ Rg ------------------ -->
-  <section class="tab-panel" id="panel-rg">
-    <p class="muted">Mass-weighted radius of gyration per frame.</p>
-    <div class="grid-2">
-      <label>Atom selection<br><input type="text" name="selection" value="protein" data-tab="rg"></label>
-      <label>Output format<br>
-        <select name="output_ext" data-tab="rg">
-          <option value="dat">.dat</option><option value="xvg">.xvg</option><option value="csv">.csv</option>
-        </select>
-      </label>
-      <label>Time step per frame (ps)<br><input type="number" name="dt" step="any" data-tab="rg"></label>
-      <label>Time unit<br>
-        <select name="time_unit" data-tab="rg">
-          <option value="ps">ps</option><option value="ns">ns</option>
-          <option value="fs">fs</option><option value="us">μs</option>
-        </select>
-      </label>
-    </div>
-    <details>
-      <summary>Plot customisation</summary>
-      <div class="grid-3">
-        <label>Title<br><input type="text" name="title" data-tab="rg"></label>
-        <label>X-axis label<br><input type="text" name="xlabel" data-tab="rg"></label>
-        <label>Y-axis label<br><input type="text" name="ylabel" data-tab="rg"></label>
-        <label>Line color<br><input type="text" name="color" data-tab="rg"></label>
-        <label>Line width<br><input type="number" name="linewidth" value="1.6" step="0.1" data-tab="rg"></label>
-        <label>Legend label<br><input type="text" name="legend_label" data-tab="rg"></label>
-        <label>Figure size<br><input type="text" name="figsize" data-tab="rg"></label>
-        <label>DPI<br><input type="number" name="dpi" value="150" data-tab="rg"></label>
-        <label>Font size<br><input type="number" name="font_size" value="12" data-tab="rg"></label>
-        <label><input type="checkbox" name="no_grid" data-tab="rg"> Hide grid</label>
-        <label><input type="checkbox" name="no_plot" data-tab="rg"> Skip plot</label>
+  <!-- Rg -->
+  <div class="analysis-block" data-analysis="rg">
+    <header>
+      <input type="checkbox" data-toggle="rg">
+      <span class="title">Rg</span>
+      <span class="desc">— mass-weighted radius of gyration per frame.</span>
+    </header>
+    <div class="params">
+      <div class="grid-2">
+        <label>Atom selection<br><input type="text" name="selection" value="protein" data-tab="rg"></label>
+        <label>Output format<br>
+          <select name="output_ext" data-tab="rg">
+            <option value="dat">.dat</option><option value="xvg">.xvg</option><option value="csv">.csv</option>
+          </select>
+        </label>
+        <label>Time unit<br>
+          <select name="time_unit" data-tab="rg">
+            <option value="ps">ps</option><option value="ns">ns</option>
+            <option value="fs">fs</option><option value="us">μs</option>
+          </select>
+        </label>
       </div>
-    </details>
-    <div class="run-row">
-      <button class="btn-run" data-action="rg">Run Rg</button>
-      <span class="status-line run-status"></span>
+      <details>
+        <summary>Plot customisation</summary>
+        <div class="grid-3">
+          <label>Title<br><input type="text" name="title" data-tab="rg"></label>
+          <label>X-axis label<br><input type="text" name="xlabel" data-tab="rg"></label>
+          <label>Y-axis label<br><input type="text" name="ylabel" data-tab="rg"></label>
+          <label>Line color<br><input type="text" name="color" data-tab="rg"></label>
+          <label>Line width<br><input type="number" name="linewidth" value="1.6" step="0.1" data-tab="rg"></label>
+          <label>Legend label<br><input type="text" name="legend_label" data-tab="rg"></label>
+          <label>X min<br><input type="number" step="any" name="xmin" data-tab="rg"></label>
+          <label>X max<br><input type="number" step="any" name="xmax" data-tab="rg"></label>
+          <label>Y min<br><input type="number" step="any" name="ymin" data-tab="rg"></label>
+          <label>Y max<br><input type="number" step="any" name="ymax" data-tab="rg"></label>
+          <label>Figure size<br><input type="text" name="figsize" data-tab="rg"></label>
+          <label>DPI<br><input type="number" name="dpi" value="150" data-tab="rg"></label>
+          <label>Font size<br><input type="number" name="font_size" value="12" data-tab="rg"></label>
+          <label><input type="checkbox" name="no_grid" data-tab="rg"> Hide grid</label>
+          <label><input type="checkbox" name="no_plot" data-tab="rg"> Skip plot</label>
+        </div>
+      </details>
     </div>
-    <div class="result-block" data-result="rg"></div>
-  </section>
+  </div>
 
-  <!-- ------------------ PCA ------------------ -->
-  <section class="tab-panel" id="panel-pca">
-    <p class="muted">Cartesian PCA on the selection. Output is a single <code>pca.npz</code> + two-panel plot.</p>
-    <div class="grid-2">
-      <label>Atom selection<br><input type="text" name="selection" value="name CA" data-tab="pca"></label>
-      <label>Number of components<br><input type="number" name="n_components" value="10" min="1" data-tab="pca"></label>
-    </div>
-    <details>
-      <summary>Plot customisation</summary>
+  <!-- SASA -->
+  <div class="analysis-block" data-analysis="sasa">
+    <header>
+      <input type="checkbox" data-toggle="sasa">
+      <span class="title">SASA</span>
+      <span class="desc">— Shrake-Rupley solvent-accessible surface area per frame.</span>
+    </header>
+    <div class="params">
       <div class="grid-3">
-        <label>Figure title<br><input type="text" name="title" data-tab="pca"></label>
-        <label>Scatter X label<br><input type="text" name="xlabel" placeholder="PC1" data-tab="pca"></label>
-        <label>Scatter Y label<br><input type="text" name="ylabel" placeholder="PC2" data-tab="pca"></label>
-        <label>Scree bar color<br><input type="text" name="color" placeholder="steelblue" data-tab="pca"></label>
-        <label>Cumulative line color<br><input type="text" name="accent_color" placeholder="darkorange" data-tab="pca"></label>
-        <label>Scatter colormap<br><input type="text" name="cmap" placeholder="viridis" data-tab="pca"></label>
-        <label>Line width<br><input type="number" name="linewidth" value="1.6" step="0.1" data-tab="pca"></label>
-        <label>Figure size<br><input type="text" name="figsize" placeholder="12x4.5" data-tab="pca"></label>
-        <label>DPI<br><input type="number" name="dpi" value="150" data-tab="pca"></label>
-        <label>Font size<br><input type="number" name="font_size" value="12" data-tab="pca"></label>
-        <label><input type="checkbox" name="no_grid" data-tab="pca"> Hide grid</label>
-        <label><input type="checkbox" name="no_plot" data-tab="pca"> Skip plot</label>
+        <label>Atom selection<br><input type="text" name="selection" value="protein" data-tab="sasa"></label>
+        <label>Probe radius (Å) <small>1.4 = water</small><br><input type="number" step="0.1" name="probe_radius" value="1.4" data-tab="sasa"></label>
+        <label>Sphere points <small>96 = fast / 256 = pub-grade</small><br><input type="number" name="n_sphere_points" value="96" min="20" max="512" data-tab="sasa"></label>
+        <label>Output format<br>
+          <select name="output_ext" data-tab="sasa">
+            <option value="dat">.dat</option><option value="xvg">.xvg</option><option value="csv">.csv</option>
+          </select>
+        </label>
+        <label>Time unit<br>
+          <select name="time_unit" data-tab="sasa">
+            <option value="ps">ps</option><option value="ns">ns</option>
+            <option value="fs">fs</option><option value="us">μs</option>
+          </select>
+        </label>
       </div>
-    </details>
-    <div class="run-row">
-      <button class="btn-run" data-action="pca">Run PCA</button>
-      <span class="status-line run-status"></span>
+      <details>
+        <summary>Plot customisation</summary>
+        <div class="grid-3">
+          <label>Title<br><input type="text" name="title" data-tab="sasa"></label>
+          <label>X-axis label<br><input type="text" name="xlabel" data-tab="sasa"></label>
+          <label>Y-axis label<br><input type="text" name="ylabel" data-tab="sasa"></label>
+          <label>Line color<br><input type="text" name="color" data-tab="sasa"></label>
+          <label>Line width<br><input type="number" name="linewidth" value="1.6" step="0.1" data-tab="sasa"></label>
+          <label>Legend label<br><input type="text" name="legend_label" data-tab="sasa"></label>
+          <label>X min<br><input type="number" step="any" name="xmin" data-tab="sasa"></label>
+          <label>X max<br><input type="number" step="any" name="xmax" data-tab="sasa"></label>
+          <label>Y min<br><input type="number" step="any" name="ymin" data-tab="sasa"></label>
+          <label>Y max<br><input type="number" step="any" name="ymax" data-tab="sasa"></label>
+          <label>Figure size<br><input type="text" name="figsize" placeholder="7.5x4.5" data-tab="sasa"></label>
+          <label>DPI<br><input type="number" name="dpi" value="150" data-tab="sasa"></label>
+          <label>Font size<br><input type="number" name="font_size" value="12" data-tab="sasa"></label>
+          <label><input type="checkbox" name="no_grid" data-tab="sasa"> Hide grid</label>
+          <label><input type="checkbox" name="no_plot" data-tab="sasa"> Skip plot</label>
+        </div>
+      </details>
     </div>
-    <div class="result-block" data-result="pca"></div>
-  </section>
+  </div>
 
-  <!-- ------------------ CLUSTER ------------------ -->
-  <section class="tab-panel" id="panel-cluster">
-    <p class="muted">K-means clustering on the saved PCA projections. Requires <code>pca.npz</code> from a previous run.</p>
-    <div class="grid-3">
-      <label>k (number of clusters)<br><input type="number" name="k" value="5" min="1" data-tab="cluster"></label>
-      <label>Number of PCs to use<br><input type="number" name="n_pcs" value="10" min="1" data-tab="cluster"></label>
-      <label>Random seed<br><input type="number" name="seed" value="0" data-tab="cluster"></label>
-      <label>Output format<br>
-        <select name="output_ext" data-tab="cluster">
-          <option value="dat">.dat</option><option value="xvg">.xvg</option><option value="csv">.csv</option>
-        </select>
-      </label>
-      <label><input type="checkbox" name="rep_pdb" data-tab="cluster" checked> Write representative-frame PDB (<code>reps.pdb</code>)</label>
-    </div>
-    <details>
-      <summary>Plot customisation</summary>
+  <!-- H-bond -->
+  <div class="analysis-block" data-analysis="hbond">
+    <header>
+      <input type="checkbox" data-toggle="hbond">
+      <span class="title">H-bond</span>
+      <span class="desc">— per-frame H-bond count using geometric D-H-A criteria.</span>
+    </header>
+    <div class="params">
       <div class="grid-3">
-        <label>Title<br><input type="text" name="title" data-tab="cluster"></label>
-        <label>X-axis label<br><input type="text" name="xlabel" placeholder="PC1" data-tab="cluster"></label>
-        <label>Y-axis label<br><input type="text" name="ylabel" placeholder="PC2" data-tab="cluster"></label>
-        <label>Center marker color<br><input type="text" name="color" placeholder="black" data-tab="cluster"></label>
-        <label>Representative marker color<br><input type="text" name="accent_color" placeholder="red" data-tab="cluster"></label>
-        <label>Cluster colormap<br><input type="text" name="cmap" placeholder="tab10" data-tab="cluster"></label>
-        <label>Figure size<br><input type="text" name="figsize" placeholder="7.5x6" data-tab="cluster"></label>
-        <label>DPI<br><input type="number" name="dpi" value="150" data-tab="cluster"></label>
-        <label>Font size<br><input type="number" name="font_size" value="12" data-tab="cluster"></label>
-        <label><input type="checkbox" name="no_grid" data-tab="cluster"> Hide grid</label>
-        <label><input type="checkbox" name="no_plot" data-tab="cluster"> Skip plot</label>
+        <label>Atom selection<br><input type="text" name="selection" value="protein" data-tab="hbond"></label>
+        <label>D-A distance cutoff (Å)<br><input type="number" step="0.1" name="d_a_cutoff" value="3.5" data-tab="hbond"></label>
+        <label>D-H-A angle cutoff (°)<br><input type="number" step="1" name="angle_cutoff" value="150" data-tab="hbond"></label>
+        <label>Output format<br>
+          <select name="output_ext" data-tab="hbond">
+            <option value="dat">.dat</option><option value="xvg">.xvg</option><option value="csv">.csv</option>
+          </select>
+        </label>
+        <label>Time unit<br>
+          <select name="time_unit" data-tab="hbond">
+            <option value="ps">ps</option><option value="ns">ns</option>
+            <option value="fs">fs</option><option value="us">μs</option>
+          </select>
+        </label>
       </div>
-    </details>
-    <div class="run-row">
-      <button class="btn-run" data-action="cluster">Run clustering</button>
-      <span class="status-line run-status"></span>
+      <details>
+        <summary>Plot customisation</summary>
+        <div class="grid-3">
+          <label>Title<br><input type="text" name="title" data-tab="hbond"></label>
+          <label>X-axis label<br><input type="text" name="xlabel" data-tab="hbond"></label>
+          <label>Y-axis label<br><input type="text" name="ylabel" data-tab="hbond"></label>
+          <label>Line color<br><input type="text" name="color" data-tab="hbond"></label>
+          <label>Line width<br><input type="number" name="linewidth" value="1.6" step="0.1" data-tab="hbond"></label>
+          <label>Legend label<br><input type="text" name="legend_label" data-tab="hbond"></label>
+          <label>X min<br><input type="number" step="any" name="xmin" data-tab="hbond"></label>
+          <label>X max<br><input type="number" step="any" name="xmax" data-tab="hbond"></label>
+          <label>Y min<br><input type="number" step="any" name="ymin" data-tab="hbond"></label>
+          <label>Y max<br><input type="number" step="any" name="ymax" data-tab="hbond"></label>
+          <label>Figure size<br><input type="text" name="figsize" placeholder="7.5x4.5" data-tab="hbond"></label>
+          <label>DPI<br><input type="number" name="dpi" value="150" data-tab="hbond"></label>
+          <label>Font size<br><input type="number" name="font_size" value="12" data-tab="hbond"></label>
+          <label><input type="checkbox" name="no_grid" data-tab="hbond"> Hide grid</label>
+          <label><input type="checkbox" name="no_plot" data-tab="hbond"> Skip plot</label>
+        </div>
+      </details>
     </div>
-    <div class="result-block" data-result="cluster"></div>
-  </section>
-</article>
+  </div>
 
-<!-- =========================================================== -->
-<!-- 3. All workspace files                                       -->
-<!-- =========================================================== -->
-<article>
-  <header><strong>3. Workspace files</strong></header>
-  <p class="muted">Everything Post_MD has written in this session. Click any item to download.</p>
-  <div id="files-list" class="files-list"></div>
+  <!-- PCA -->
+  <div class="analysis-block" data-analysis="pca">
+    <header>
+      <input type="checkbox" data-toggle="pca">
+      <span class="title">PCA</span>
+      <span class="desc">— Cartesian PCA per system (saved as <code>pca[_label].npz</code>).</span>
+    </header>
+    <div class="params">
+      <div class="grid-2">
+        <label>Atom selection<br><input type="text" name="selection" value="name CA" data-tab="pca"></label>
+        <label>Number of components<br><input type="number" name="n_components" value="10" min="1" data-tab="pca"></label>
+      </div>
+      <details>
+        <summary>Plot customisation</summary>
+        <div class="grid-3">
+          <label>Title<br><input type="text" name="title" data-tab="pca"></label>
+          <label>X label (scatter)<br><input type="text" name="xlabel" placeholder="PC1" data-tab="pca"></label>
+          <label>Y label (scatter)<br><input type="text" name="ylabel" placeholder="PC2" data-tab="pca"></label>
+          <label>Scree color<br><input type="text" name="color" placeholder="steelblue" data-tab="pca"></label>
+          <label>Cumulative color<br><input type="text" name="accent_color" placeholder="darkorange" data-tab="pca"></label>
+          <label>Scatter cmap<br><input type="text" name="cmap" placeholder="viridis" data-tab="pca"></label>
+          <label>Line width<br><input type="number" name="linewidth" value="1.6" step="0.1" data-tab="pca"></label>
+          <label>Figure size<br><input type="text" name="figsize" placeholder="12x4.5" data-tab="pca"></label>
+          <label>DPI<br><input type="number" name="dpi" value="150" data-tab="pca"></label>
+          <label>Font size<br><input type="number" name="font_size" value="12" data-tab="pca"></label>
+          <label><input type="checkbox" name="no_grid" data-tab="pca"> Hide grid</label>
+          <label><input type="checkbox" name="no_plot" data-tab="pca"> Skip plot</label>
+        </div>
+      </details>
+    </div>
+  </div>
+
+  <!-- Cluster -->
+  <div class="analysis-block" data-analysis="cluster">
+    <header>
+      <input type="checkbox" data-toggle="cluster">
+      <span class="title">Cluster</span>
+      <span class="desc">— K-means on each system's PCA projections (PCA must be ticked in the same batch, or already on disk).</span>
+    </header>
+    <div class="params">
+      <div class="grid-3">
+        <label>k (clusters)<br><input type="number" name="k" value="5" min="1" data-tab="cluster"></label>
+        <label>Number of PCs<br><input type="number" name="n_pcs" value="10" min="1" data-tab="cluster"></label>
+        <label>Random seed<br><input type="number" name="seed" value="0" data-tab="cluster"></label>
+        <label>Output format<br>
+          <select name="output_ext" data-tab="cluster">
+            <option value="dat">.dat</option><option value="xvg">.xvg</option><option value="csv">.csv</option>
+          </select>
+        </label>
+        <label><input type="checkbox" name="rep_pdb" data-tab="cluster" checked> Write rep-frame PDB</label>
+      </div>
+      <details>
+        <summary>Plot customisation</summary>
+        <div class="grid-3">
+          <label>Title<br><input type="text" name="title" data-tab="cluster"></label>
+          <label>X label<br><input type="text" name="xlabel" placeholder="PC1" data-tab="cluster"></label>
+          <label>Y label<br><input type="text" name="ylabel" placeholder="PC2" data-tab="cluster"></label>
+          <label>Center color<br><input type="text" name="color" placeholder="black" data-tab="cluster"></label>
+          <label>Rep color<br><input type="text" name="accent_color" placeholder="red" data-tab="cluster"></label>
+          <label>Cluster cmap<br><input type="text" name="cmap" placeholder="tab10" data-tab="cluster"></label>
+          <label>Figure size<br><input type="text" name="figsize" placeholder="7.5x6" data-tab="cluster"></label>
+          <label>DPI<br><input type="number" name="dpi" value="150" data-tab="cluster"></label>
+          <label>Font size<br><input type="number" name="font_size" value="12" data-tab="cluster"></label>
+          <label><input type="checkbox" name="no_grid" data-tab="cluster"> Hide grid</label>
+          <label><input type="checkbox" name="no_plot" data-tab="cluster"> Skip plot</label>
+        </div>
+      </details>
+    </div>
+  </div>
+
+  <div class="run-row">
+    <button id="btn-run-batch">Run analysis</button>
+    <label style="display:inline-flex; align-items:center; gap:0.4rem; margin:0;">
+      <input type="checkbox" id="opt-autoimage" checked>
+      <span title="Wraps PBC-split molecules back together and centres the anchor at the box centre, cpptraj-style. Turn off if the trajectory is already imaged (or if autoimage is corrupting your structure).">Autoimage</span>
+    </label>
+    <span id="run-status" class="status-line"></span>
+  </div>
+
+  <div id="results-area" style="margin-top: 1rem;"></div>
 </article>
 
 <footer class="muted" style="text-align: center; margin-top: 2rem; font-size: 0.85rem;">
@@ -378,8 +443,9 @@
 const $ = (sel, root = document) => root.querySelector(sel);
 const $$ = (sel, root = document) => Array.from(root.querySelectorAll(sel));
 
-let state = { topology: null, trajectory: null, outputs: [] };
+let state = { systems: [], outputs: [] };
 
+// ---- status fetch + render ----
 async function refreshStatus() {
   const res = await fetch('/api/status');
   state = await res.json();
@@ -390,125 +456,181 @@ async function refreshStatus() {
 function renderStatus() {
   const pills = $('#status-pills');
   pills.innerHTML = '';
-  function pill(label, value, source) {
+  if (!state.systems.length) {
     const span = document.createElement('span');
-    span.className = 'pill' + (value ? ' ok' : '');
-    if (value) {
-      const tag = source === 'path' ? ' (on disk)' : '';
-      span.textContent = `${label}: ${value}${tag}`;
+    span.className = 'pill';
+    span.textContent = 'no systems registered';
+    pills.appendChild(span);
+    return;
+  }
+  for (const s of state.systems) {
+    const ok = s.topology && s.trajectory;
+    const span = document.createElement('span');
+    span.className = 'pill ' + (ok ? 'ok' : (s.topology_stale || s.trajectory_stale ? 'stale' : ''));
+    if (ok) {
+      span.textContent = `${s.label}: ${s.topology} + ${s.trajectory}`;
+    } else if (s.topology_stale || s.trajectory_stale) {
+      span.textContent = `${s.label}: STALE (${s.topology_stale || s.trajectory_stale})`;
+      span.title = (s.topology_stale || '') + ' / ' + (s.trajectory_stale || '');
     } else {
-      span.textContent = `no ${label}`;
+      span.textContent = `${s.label}: incomplete`;
     }
     pills.appendChild(span);
   }
-  pill('topology',   state.topology,   state.topology_source);
-  pill('trajectory', state.trajectory, state.trajectory_source);
 }
 
-function renderFiles() {
-  const list = $('#files-list');
+// Workspace file panel removed — render functions stay as no-ops so the
+// rest of the JS can keep calling them without conditional checks.
+function renderFiles() {}
+
+// ---- systems list UI ----
+function renderSystems() {
+  const list = $('#systems-list');
   list.innerHTML = '';
-  if (!state.outputs.length) {
-    list.innerHTML = '<span class="muted">No outputs yet.</span>';
+  if (!state.systems.length) {
+    addSystemRow({ label: 'System 1', topology_path: '', trajectory_path: '' });
     return;
   }
-  for (const f of state.outputs) {
-    const a = document.createElement('a');
-    a.href = `/api/result/${encodeURIComponent(f)}`;
-    a.textContent = f;
-    a.target = '_blank';
-    a.download = f;
-    list.appendChild(a);
+  for (const s of state.systems) {
+    addSystemRow(s);
   }
 }
 
-// ---- tabs ----
-$$('#tabs button').forEach(btn => {
-  btn.addEventListener('click', () => {
-    $$('#tabs button').forEach(b => b.classList.remove('active'));
-    btn.classList.add('active');
-    const tab = btn.dataset.tab;
-    $$('.tab-panel').forEach(p => p.classList.remove('active'));
-    $(`#panel-${tab}`).classList.add('active');
-  });
-});
-
-// ---- mode toggle (upload vs use-path, per role) ----
-function currentMode(role) {
-  const name = role === 'topology' ? 'topo-mode' : 'traj-mode';
-  const sel = document.querySelector(`input[name="${name}"]:checked`);
-  return sel ? sel.value : 'upload';
-}
-function setPanesFor(role) {
-  const mode = currentMode(role);
-  $$(`.mode-pane[data-role="${role}"]`).forEach(p => {
-    p.style.display = (p.dataset.mode === mode) ? '' : 'none';
-  });
-}
-$$('input[name="topo-mode"]').forEach(r => r.addEventListener('change', () => setPanesFor('topology')));
-$$('input[name="traj-mode"]').forEach(r => r.addEventListener('change', () => setPanesFor('trajectory')));
-
-// ---- submit: dispatch upload OR use-path per role ----
-$('#btn-upload').addEventListener('click', async () => {
-  const queue = [];
-  for (const role of ['topology', 'trajectory']) {
-    const mode = currentMode(role);
-    if (mode === 'upload') {
-      const file = $(role === 'topology' ? '#file-topology' : '#file-trajectory').files[0];
-      if (file) queue.push({ role, mode, file });
-    } else {
-      const path = $(role === 'topology' ? '#path-topology' : '#path-trajectory').value.trim();
-      if (path) queue.push({ role, mode, path });
-    }
+function addSystemRow(initial) {
+  const list = $('#systems-list');
+  const row = document.createElement('div');
+  row.className = 'system-row';
+  row.innerHTML = `
+    <header>
+      <span style="display:flex; gap:0.4rem; align-items:center;">
+        <input type="text" class="label-input" placeholder="Label (e.g. WT, Mut1)" value="${(initial && initial.label) || ''}">
+        <label style="margin:0; display:inline-flex; gap:0.3rem; align-items:center;" title="Plot color for this system in overlay graphs">
+          <input type="color" class="color-input" value="${(initial && initial.color) || '#1f77b4'}">
+        </label>
+      </span>
+      <span style="display:flex; gap:0.4rem;">
+        <button type="button" class="secondary outline btn-remove-system">Remove</button>
+      </span>
+    </header>
+    <label>Topology <small class="muted">.prmtop / .parm7 / .pdb / .gro</small>
+      <div class="path-row">
+        <input type="text" class="topology-input" placeholder="/path/to/system.prmtop" value="${(initial && initial.topology_path) || ''}">
+        <button type="button" class="secondary btn-browse-topology">Browse…</button>
+      </div>
+      <div class="file-browser browser-topology" style="display:none"></div>
+    </label>
+    <label style="margin-top: 0.4rem;">Trajectory <small class="muted">.nc / .xtc / .trr / .mdcrd</small>
+      <div class="path-row">
+        <input type="text" class="trajectory-input" placeholder="/path/to/prod.nc" value="${(initial && initial.trajectory_path) || ''}">
+        <button type="button" class="secondary btn-browse-trajectory">Browse…</button>
+      </div>
+      <div class="file-browser browser-trajectory" style="display:none"></div>
+    </label>
+    <div class="prepare-status status-line" style="margin-top: 0.3rem;"></div>
+  `;
+  if (initial && (initial.topology_stale || initial.trajectory_stale)) {
+    const w = document.createElement('div');
+    w.className = 'system-stale';
+    const parts = [];
+    if (initial.topology_stale)   parts.push(`topology missing: ${initial.topology_stale}`);
+    if (initial.trajectory_stale) parts.push(`trajectory missing: ${initial.trajectory_stale}`);
+    w.textContent = parts.join('  ·  ');
+    row.appendChild(w);
   }
-  if (!queue.length) {
-    setUploadStatus('Pick a file or enter a path for at least one role.', true);
-    return;
-  }
+  row.querySelector('.btn-remove-system').addEventListener('click', () => row.remove());
+  row.querySelector('.btn-browse-topology').addEventListener('click', () =>
+    toggleBrowser(row, 'topology'));
+  row.querySelector('.btn-browse-trajectory').addEventListener('click', () =>
+    toggleBrowser(row, 'trajectory'));
+  list.appendChild(row);
+}
 
-  setUploadStatus(`Submitting ${queue.length} item(s)…`, false);
-  try {
-    const summary = [];
-    for (const item of queue) {
-      if (item.mode === 'upload') {
-        const res = await uploadOne(item.role, item.file);
-        if (res && res.saved) summary.push(`${item.role}=${res.saved} (uploaded)`);
-      } else {
-        const res = await registerPath(item.role, item.path);
-        if (res && res.path) summary.push(`${item.role}=${res.path} (on disk)`);
+function showPrepareStatus(row, msg, isError) {
+  const el = row.querySelector('.prepare-status');
+  if (!el) return;
+  el.textContent = msg;
+  el.className = 'prepare-status status-line' + (isError ? ' error' : '');
+}
+
+// Polls /api/preprocess-progress every `intervalMs` while the supplied
+// `shouldKeepPolling` returns true. Each tick calls `onTick(snapshot)`
+// where snapshot is the {done, total, finished} for the named op.
+async function pollPreprocessProgress(systemIdx, op, shouldKeepPolling, onTick, intervalMs = 1500) {
+  while (shouldKeepPolling()) {
+    try {
+      const r = await fetch(`/api/preprocess-progress?system=${systemIdx}`);
+      if (r.ok) {
+        const snap = await r.json();
+        onTick(snap[op] || null);
       }
+    } catch (_) { /* ignore transient errors, just keep polling */ }
+    await new Promise(res => setTimeout(res, intervalMs));
+  }
+}
+
+function formatProgress(snap, verb) {
+  if (!snap) return `${verb}…`;
+  const { done, total } = snap;
+  if (!total) return `${verb}… (starting)`;
+  const pct = ((done / total) * 100).toFixed(1);
+  return `${verb}: ${pct}%  (${done.toLocaleString()} / ${total.toLocaleString()} frames)`;
+}
+
+function collectSystemsFromUI() {
+  const rows = $$('#systems-list .system-row');
+  return rows.map(row => ({
+    label: row.querySelector('.label-input').value.trim(),
+    topology: row.querySelector('.topology-input').value.trim(),
+    trajectory: row.querySelector('.trajectory-input').value.trim(),
+    color: row.querySelector('.color-input').value,
+  })).filter(s => s.topology || s.trajectory);
+}
+
+$('#btn-add-system').addEventListener('click', () =>
+  addSystemRow({ label: `System ${$$('#systems-list .system-row').length + 1}` }));
+
+$('#btn-save-systems').addEventListener('click', async () => {
+  const systems = collectSystemsFromUI();
+  setSystemsStatus(`Saving ${systems.length} system(s)…`, false);
+  try {
+    const res = await fetch('/api/systems', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ systems }),
+    });
+    const data = await res.json().catch(() => ({}));
+    if (!res.ok) {
+      setSystemsStatus(`Failed: ${data.detail || res.statusText}`, true);
+      return;
     }
-    setUploadStatus(summary.join('   ·   ') || 'No changes.', false);
-    await refreshStatus();
-  } catch (err) {
-    setUploadStatus(`Failed: ${err.message || err}`, true);
-    await refreshStatus();
+    state = data.state;
+    renderStatus();
+    renderFiles();
+    setSystemsStatus(`Saved ${state.systems.length} system(s).`, false);
+  } catch (e) {
+    setSystemsStatus(`Error: ${e.message}`, true);
   }
 });
 
-async function registerPath(role, path) {
-  const res = await fetch('/api/use-path', {
-    method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({ role, path }),
-  });
-  const data = await res.json().catch(() => ({}));
-  if (!res.ok) {
-    throw new Error(`${res.status}: ${data.detail || res.statusText}`);
-  }
-  return data;
+function setSystemsStatus(msg, isError) {
+  const el = $('#systems-status');
+  el.textContent = msg;
+  el.className = 'status-line' + (isError ? ' error' : '');
 }
 
-// ---- server-side file picker (for the "Use file on disk" mode) ----
-//
-// The browser cannot read the user's local filesystem from a text input,
-// so we expose the *server's* filesystem via /api/browse and let the user
-// navigate it. Clicking a file fills the path text box and closes the
-// panel. Per-role state lives in window._browserState so toggling the
-// Browse button reopens at the last visited directory.
+$('#btn-reset').addEventListener('click', async () => {
+  if (!confirm('Delete every file in the workspace and clear registered systems?')) return;
+  await fetch('/api/reset', { method: 'POST' });
+  $('#results-area').innerHTML = '';
+  state = { systems: [], outputs: [] };
+  renderStatus();
+  renderFiles();
+  $('#systems-list').innerHTML = '';
+  addSystemRow({ label: 'System 1' });
+  setSystemsStatus('', false);
+});
 
-window._browserState = window._browserState || { topology: null, trajectory: null };
-
+// ---- file browser (server-side) ----
 async function fetchBrowse(role, path) {
   const params = new URLSearchParams();
   if (path) params.set('path', path);
@@ -529,14 +651,8 @@ function fmtSize(b) {
   return `${(b / 1024 / 1024 / 1024).toFixed(2)} GB`;
 }
 
-function renderBrowser(role, data) {
-  const panel = $(`#browser-${role}`);
-  const dirs  = data.dirs  || [];
-  const files = data.files || [];
-
+function renderBrowser(panel, role, data, rowEl) {
   panel.innerHTML = '';
-
-  // Header: current path + close button
   const hdr = document.createElement('div');
   hdr.className = 'fb-header';
   const pathSpan = document.createElement('span');
@@ -551,51 +667,42 @@ function renderBrowser(role, data) {
   hdr.append(pathSpan, closeBtn);
   panel.appendChild(hdr);
 
-  // Entries list
   const list = document.createElement('div');
   list.className = 'fb-entries';
-
   if (data.parent) {
     const up = document.createElement('div');
     up.className = 'fb-entry';
     up.innerHTML = '<span class="fb-icon">↑</span><span>..</span>';
-    up.addEventListener('click', () => openBrowser(role, data.parent));
+    up.addEventListener('click', () => openBrowser(panel, role, data.parent, rowEl));
     list.appendChild(up);
   }
-  for (const d of dirs) {
-    const row = document.createElement('div');
-    row.className = 'fb-entry';
-    row.innerHTML = `<span class="fb-icon">📁</span><span>${d.name}</span>`;
-    row.addEventListener('click', () => openBrowser(role, d.path));
-    list.appendChild(row);
+  for (const d of (data.dirs || [])) {
+    const r = document.createElement('div');
+    r.className = 'fb-entry';
+    r.innerHTML = `<span class="fb-icon">📁</span><span>${d.name}</span>`;
+    r.addEventListener('click', () => openBrowser(panel, role, d.path, rowEl));
+    list.appendChild(r);
   }
-  for (const f of files) {
-    const row = document.createElement('div');
-    row.className = 'fb-entry';
-    row.innerHTML =
-      `<span class="fb-icon">📄</span><span>${f.name}</span>` +
-      `<span class="fb-size">${fmtSize(f.size)}</span>`;
-    row.addEventListener('click', () => {
-      $(`#path-${role}`).value = f.path;
+  for (const f of (data.files || [])) {
+    const r = document.createElement('div');
+    r.className = 'fb-entry';
+    r.innerHTML = `<span class="fb-icon">📄</span><span>${f.name}</span><span class="fb-size">${fmtSize(f.size)}</span>`;
+    r.addEventListener('click', () => {
+      rowEl.querySelector(`.${role}-input`).value = f.path;
       panel.style.display = 'none';
-      updateBigFileWarning();
     });
-    list.appendChild(row);
+    list.appendChild(r);
   }
-  if (!dirs.length && !files.length && !data.parent) {
-    const empty = document.createElement('div');
-    empty.className = 'fb-empty';
-    empty.textContent = 'No matching files or sub-directories here.';
-    list.appendChild(empty);
-  } else if (!dirs.length && !files.length) {
-    const empty = document.createElement('div');
-    empty.className = 'fb-empty';
-    empty.textContent = `No matching ${role} files here. Go up with ".." or jump to a path below.`;
-    list.appendChild(empty);
+  if (!(data.dirs || []).length && !(data.files || []).length) {
+    const e = document.createElement('div');
+    e.className = 'fb-empty';
+    e.textContent = data.parent
+      ? `No matching ${role} files here. Use ".." to go up.`
+      : 'Empty directory.';
+    list.appendChild(e);
   }
   panel.appendChild(list);
 
-  // "Jump to" footer so the user can paste an absolute path directly.
   const go = document.createElement('div');
   go.className = 'fb-go';
   const goInp = document.createElement('input');
@@ -607,7 +714,7 @@ function renderBrowser(role, data) {
   goBtn.textContent = 'Go';
   const goHandler = () => {
     const v = goInp.value.trim();
-    if (v) openBrowser(role, v);
+    if (v) openBrowser(panel, role, v, rowEl);
   };
   goBtn.addEventListener('click', goHandler);
   goInp.addEventListener('keydown', (e) => { if (e.key === 'Enter') goHandler(); });
@@ -615,215 +722,40 @@ function renderBrowser(role, data) {
   panel.appendChild(go);
 }
 
-async function openBrowser(role, path) {
-  const panel = $(`#browser-${role}`);
+async function openBrowser(panel, role, path, rowEl) {
   panel.style.display = '';
   panel.innerHTML = '<div class="fb-empty">Loading…</div>';
   try {
     const data = await fetchBrowse(role, path);
-    window._browserState[role] = data.path;
-    renderBrowser(role, data);
+    renderBrowser(panel, role, data, rowEl);
   } catch (err) {
     panel.innerHTML = `<div class="fb-empty error">Error: ${err.message}</div>`;
   }
 }
 
-$$('.btn-browse').forEach(btn => {
-  btn.addEventListener('click', () => {
-    const role = btn.dataset.role;
-    const panel = $(`#browser-${role}`);
-    if (panel.style.display !== 'none') {
-      panel.style.display = 'none';
-      return;
-    }
-    // Start at the value already in the text input, or the last-visited dir,
-    // or the server's default (workdir parent).
-    const typed = $(`#path-${role}`).value.trim();
-    const start = typed || window._browserState[role] || '';
-    openBrowser(role, start);
+function toggleBrowser(rowEl, role) {
+  const panel = rowEl.querySelector(`.browser-${role}`);
+  if (panel.style.display !== 'none') { panel.style.display = 'none'; return; }
+  const start = rowEl.querySelector(`.${role}-input`).value.trim();
+  openBrowser(panel, role, start, rowEl);
+}
+
+// ---- analysis block expand/collapse ----
+$$('.analysis-block').forEach(block => {
+  const cb = block.querySelector('input[type="checkbox"][data-toggle]');
+  cb.addEventListener('change', () => {
+    if (cb.checked) block.classList.add('expanded');
+    else block.classList.remove('expanded');
+  });
+  // Clicking header toggles checkbox (except if user clicked the box itself).
+  block.querySelector('header').addEventListener('click', (e) => {
+    if (e.target === cb || e.target.closest('input, label')) return;
+    cb.checked = !cb.checked;
+    cb.dispatchEvent(new Event('change'));
   });
 });
 
-// ---- resumable chunked uploader ----
-//
-// File is sliced into CHUNK_SIZE pieces and sent sequentially as POSTs to
-// /api/upload-chunk. The server appends each chunk to the destination file,
-// so resume is just "ask the server how many bytes it has and continue".
-//
-// On a transient failure we retry up to MAX_RETRIES with backoff. On reload
-// we look up localStorage to recover the previous progress; if the file's
-// size + lastModified match what we saw before, we resume from the server's
-// reported byte count, otherwise we restart from 0.
-
-const CHUNK_SIZE   = 16 * 1024 * 1024;   // 16 MiB per chunk
-const MAX_RETRIES  = 5;
-const BIG_FILE_BYTES = 2 * 1024 * 1024 * 1024;  // 2 GiB → suggest disk mode
-
-function uploadStorageKey(role, file) {
-  return `pmd:upload:${role}:${file.name}:${file.size}:${file.lastModified}`;
-}
-
-async function fetchUploadStatus(role, filename) {
-  const url = `/api/upload-status?role=${encodeURIComponent(role)}&filename=${encodeURIComponent(filename)}`;
-  const res = await fetch(url);
-  if (!res.ok) return 0;
-  const data = await res.json().catch(() => ({}));
-  return Number.isFinite(data.bytes) ? data.bytes : 0;
-}
-
-function sendChunk(role, file, offset, end, isFinal) {
-  return new Promise((resolve, reject) => {
-    const blob = file.slice(offset, end);
-    const url =
-      `/api/upload-chunk?role=${encodeURIComponent(role)}` +
-      `&filename=${encodeURIComponent(file.name)}` +
-      `&offset=${offset}&total=${file.size}` +
-      (isFinal ? '&final=1' : '');
-    const xhr = new XMLHttpRequest();
-    xhr.open('POST', url);
-    xhr.responseType = 'json';
-    xhr.onload = () => {
-      if (xhr.status >= 200 && xhr.status < 300) resolve(xhr.response);
-      else {
-        const d = (xhr.response && xhr.response.detail) || xhr.statusText || `HTTP ${xhr.status}`;
-        const err = new Error(`${xhr.status}: ${d}`);
-        err.status = xhr.status;
-        err.response = xhr.response;
-        reject(err);
-      }
-    };
-    xhr.onerror = () => reject(new Error('network error'));
-    xhr.onabort = () => reject(new Error('aborted'));
-    xhr.send(blob);
-  });
-}
-
-async function uploadOne(role, file) {
-  const storeKey = uploadStorageKey(role, file);
-  // Recover state. Trust server's view; localStorage is just a hint.
-  let offset = await fetchUploadStatus(role, file.name);
-  if (offset > file.size) offset = 0;  // sanity
-  const cached = Number(localStorage.getItem(storeKey) || 0);
-  if (cached !== offset) {
-    // Either a stale cache, or a different file → start from server's number.
-    localStorage.setItem(storeKey, String(offset));
-  }
-  if (offset > 0) {
-    setUploadStatus(
-      `Resuming ${file.name} (${role}) from ${formatBytes(offset)} / ${formatBytes(file.size)}…`,
-      false,
-    );
-  }
-
-  const t0 = performance.now();
-  let lastResponse = null;
-
-  while (offset < file.size) {
-    const end = Math.min(offset + CHUNK_SIZE, file.size);
-    const isFinal = end === file.size;
-
-    let attempt = 0;
-    while (true) {
-      try {
-        lastResponse = await sendChunk(role, file, offset, end, isFinal);
-        break;
-      } catch (err) {
-        // 409 = server's offset doesn't match ours → resync, then retry.
-        if (err.status === 409) {
-          const srv = await fetchUploadStatus(role, file.name);
-          offset = srv;
-          localStorage.setItem(storeKey, String(offset));
-          if (offset >= file.size) {
-            return { saved: file.name, role, bytes: file.size };
-          }
-          break;
-        }
-        attempt += 1;
-        if (attempt > MAX_RETRIES) throw err;
-        const wait = Math.min(1000 * 2 ** (attempt - 1), 10_000);
-        setUploadStatus(
-          `Chunk failed (${err.message}). Retry ${attempt}/${MAX_RETRIES} in ${wait/1000}s…`,
-          true,
-        );
-        await new Promise((r) => setTimeout(r, wait));
-      }
-    }
-
-    offset = lastResponse && Number.isFinite(lastResponse.received)
-      ? lastResponse.received
-      : end;
-    localStorage.setItem(storeKey, String(offset));
-
-    const elapsed = (performance.now() - t0) / 1000;
-    const speed = elapsed > 0 ? offset / elapsed : 0;
-    const pct = ((offset / file.size) * 100).toFixed(1);
-    setUploadStatus(
-      `Uploading ${file.name} (${role}): ${pct}%  ` +
-      `(${formatBytes(offset)} / ${formatBytes(file.size)}` +
-      (speed > 0 ? `, ${formatBytes(speed)}/s` : '') + `)`,
-      false,
-    );
-  }
-
-  // Done — clear cached offset.
-  localStorage.removeItem(storeKey);
-  return lastResponse || { saved: file.name, role, bytes: file.size };
-}
-
-// ---- big-file nudge: when the user picks a >2 GB file in upload mode,
-// suggest 'Use file on disk' instead so they don't sit through hours of
-// transfer when the server can see the file locally.
-function updateBigFileWarning() {
-  const banner = $('#bigfile-warning');
-  const flagged = [];
-  for (const role of ['topology', 'trajectory']) {
-    if (currentMode(role) !== 'upload') continue;
-    const inp = $(role === 'topology' ? '#file-topology' : '#file-trajectory');
-    const f = inp && inp.files[0];
-    if (f && f.size >= BIG_FILE_BYTES) {
-      flagged.push(`${role} (${formatBytes(f.size)})`);
-    }
-  }
-  if (!flagged.length) {
-    banner.style.display = 'none';
-    banner.textContent = '';
-    return;
-  }
-  banner.style.display = '';
-  banner.textContent =
-    `Heads up — ${flagged.join(' and ')} is large. ` +
-    `If the file already lives on this machine, switch the radio to "Use file on disk" and paste the absolute path; ` +
-    `that skips the transfer entirely. Uploads above ~2 GB are resumable but still slow.`;
-}
-$$('#file-topology, #file-trajectory').forEach(el =>
-  el.addEventListener('change', updateBigFileWarning)
-);
-$$('input[name="topo-mode"], input[name="traj-mode"]').forEach(el =>
-  el.addEventListener('change', updateBigFileWarning)
-);
-
-function formatBytes(b) {
-  if (b < 1024)      return `${b} B`;
-  if (b < 1024 ** 2) return `${(b / 1024).toFixed(1)} KB`;
-  if (b < 1024 ** 3) return `${(b / 1024 / 1024).toFixed(1)} MB`;
-  return `${(b / 1024 / 1024 / 1024).toFixed(2)} GB`;
-}
-
-$('#btn-reset').addEventListener('click', async () => {
-  if (!confirm('Delete every file in the workspace?')) return;
-  await fetch('/api/reset', { method: 'POST' });
-  $$('.result-block').forEach(b => b.innerHTML = '');
-  $$('.run-status').forEach(s => s.textContent = '');
-  refreshStatus();
-});
-
-function setUploadStatus(msg, isError) {
-  const el = $('#upload-status');
-  el.textContent = msg;
-  el.className = 'status-line' + (isError ? ' error' : '');
-}
-
-// ---- collect options ----
+// ---- collect params per analysis ----
 function collectOptions(tab) {
   const opts = {};
   $$(`[data-tab="${tab}"]`).forEach(input => {
@@ -842,95 +774,194 @@ function collectOptions(tab) {
   return opts;
 }
 
-// ---- run buttons ----
-$$('.btn-run').forEach(btn => {
-  btn.addEventListener('click', async () => {
-    const action = btn.dataset.action;
-    const panel = btn.closest('.tab-panel');
-    const status = $('.run-status', panel);
-    const resultDiv = $(`[data-result="${action}"]`);
-    status.textContent = 'Running…';
-    status.className = 'status-line run-status';
-    resultDiv.innerHTML = '';
-    try {
-      let url, body;
-      if (action === 'info') {
-        url = '/api/info';
-        body = null;
-      } else {
-        url = `/api/run/${action}`;
-        body = JSON.stringify(collectOptions(action));
+// ---- Run batch ----
+$('#btn-run-batch').addEventListener('click', async () => {
+  const selected = $$('.analysis-block input[data-toggle]:checked')
+    .map(cb => cb.dataset.toggle);
+  if (!selected.length) {
+    setRunStatus('Tick at least one analysis first.', true);
+    return;
+  }
+  if (!state.systems.length) {
+    setRunStatus('Register at least one system first (Save systems above).', true);
+    return;
+  }
+  const incomplete = state.systems.find(s => !s.topology || !s.trajectory);
+  if (incomplete) {
+    setRunStatus(`System "${incomplete.label}" is missing files — fix or remove it.`, true);
+    return;
+  }
+
+  // Info is handled specially (per-system summary, no batch RUNNERS entry).
+  const handleInfo = selected.includes('info');
+  const batchAnalyses = {};
+  for (const name of selected) {
+    if (name === 'info') continue;
+    batchAnalyses[name] = collectOptions(name);
+  }
+
+  setRunStatus('Running…', false);
+  $('#results-area').innerHTML = '';
+
+  // While /api/run-batch is in flight, poll progress per system so the
+  // user sees a generic "Preparing trajectory: X%" line under each row.
+  // The bookkeeping happens inside /api/run-batch (autoimage + strip in
+  // one combined pass, hidden under the op="prepare" label); from the
+  // user's perspective it's just "preparing".
+  const rows = $$('#systems-list .system-row');
+  let runInFlight = true;
+  const pollers = [];
+  for (let i = 0; i < state.systems.length && i < rows.length; i++) {
+    const row = rows[i];
+    const sysIdx = i;
+    pollers.push(pollPreprocessProgress(sysIdx, 'prepare',
+      () => runInFlight,
+      snap => {
+        if (!runInFlight) return;
+        if (!snap) { showPrepareStatus(row, ''); return; }
+        if (snap.finished) {
+          showPrepareStatus(row, '');
+        } else {
+          showPrepareStatus(row, formatProgress(snap, `Preparing ${state.systems[sysIdx].label}`));
+        }
+      },
+    ));
+  }
+
+  try {
+    if (handleInfo) {
+      const infos = [];
+      for (let i = 0; i < state.systems.length; i++) {
+        const r = await fetch('/api/info', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ system: i }),
+        });
+        const data = await r.json();
+        infos.push({ label: state.systems[i].label, ok: r.ok, data });
       }
-      const res = await fetch(url, {
+      renderInfo(infos);
+    }
+
+    if (Object.keys(batchAnalyses).length) {
+      const doAutoimage = !!$('#opt-autoimage').checked;
+      const r = await fetch('/api/run-batch', {
         method: 'POST',
-        headers: body ? { 'Content-Type': 'application/json' } : {},
-        body,
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ analyses: batchAnalyses, autoimage: doAutoimage }),
       });
-      const data = await res.json();
-      if (!res.ok) {
-        status.textContent = `Error: ${data.detail || res.statusText}`;
-        status.className = 'status-line run-status error';
+      const data = await r.json();
+      if (!r.ok) {
+        setRunStatus(`Error: ${data.detail || r.statusText}`, true);
         return;
       }
-      status.textContent = 'Done.';
-      renderResult(action, data, resultDiv);
+      renderBatchResults(data.result);
       if (data.state) {
         state = data.state;
         renderStatus();
         renderFiles();
-      } else {
-        refreshStatus();
       }
-    } catch (e) {
-      status.textContent = `Error: ${e}`;
-      status.className = 'status-line run-status error';
+    } else {
+      await refreshStatus();
     }
-  });
+
+    setRunStatus('Done.', false);
+  } catch (e) {
+    setRunStatus(`Error: ${e.message || e}`, true);
+  } finally {
+    runInFlight = false;
+    await Promise.all(pollers);
+    for (const row of rows) showPrepareStatus(row, '');
+  }
 });
 
-function renderResult(action, data, container) {
-  container.innerHTML = '';
-  if (action === 'info') {
+function setRunStatus(msg, isError) {
+  const el = $('#run-status');
+  el.textContent = msg;
+  el.className = 'status-line' + (isError ? ' error' : '');
+}
+
+function renderInfo(infos) {
+  const area = $('#results-area');
+  const block = document.createElement('div');
+  block.className = 'result-block';
+  block.innerHTML = `<h4>Info</h4>`;
+  for (const it of infos) {
+    const wrap = document.createElement('div');
+    wrap.style.marginBottom = '0.5rem';
+    wrap.innerHTML = `<strong>${it.label}</strong>`;
     const pre = document.createElement('pre');
     pre.className = 'json';
-    pre.textContent = JSON.stringify(data, null, 2);
-    container.appendChild(pre);
-    return;
+    pre.textContent = JSON.stringify(it.data, null, 2);
+    wrap.appendChild(pre);
+    block.appendChild(wrap);
   }
-  const r = data.result;
-  // Download links + plot
-  const links = document.createElement('p');
-  if (r.data) {
-    links.innerHTML += `Data: <a href="/api/result/${encodeURIComponent(r.data)}" target="_blank" download>${r.data}</a> &nbsp;`;
-  }
-  if (r.plot) {
-    links.innerHTML += `Plot: <a href="/api/result/${encodeURIComponent(r.plot)}" target="_blank" download>${r.plot}</a> &nbsp;`;
-  }
-  if (r.rep_pdb) {
-    links.innerHTML += `Representatives: <a href="/api/result/${encodeURIComponent(r.rep_pdb)}" target="_blank" download>${r.rep_pdb}</a>`;
-  }
-  container.appendChild(links);
-  if (r.plot) {
-    const img = document.createElement('img');
-    img.src = `/api/result/${encodeURIComponent(r.plot)}?cb=${Date.now()}`;
-    img.alt = `${action} plot`;
-    container.appendChild(img);
-  }
-  if (action === 'pca' && r.cumulative) {
-    const info = document.createElement('p');
-    info.className = 'muted';
-    info.textContent = `Cumulative variance: ${r.cumulative.map(v => v.toFixed(3)).join(', ')}`;
-    container.appendChild(info);
-  }
-  if (action === 'cluster') {
-    const info = document.createElement('p');
-    info.className = 'muted';
-    info.textContent = `k = ${r.k}, using ${r.n_pcs} PCs.`;
-    container.appendChild(info);
+  area.appendChild(block);
+}
+
+function renderBatchResults(result) {
+  const area = $('#results-area');
+  for (const [name, entry] of Object.entries(result)) {
+    const block = document.createElement('div');
+    block.className = 'result-block';
+    const title = document.createElement('h4');
+    title.textContent = name.toUpperCase();
+    block.appendChild(title);
+
+    // Data file links per system
+    if (entry.systems) {
+      const linksWrap = document.createElement('p');
+      linksWrap.className = 'status-line';
+      const links = [];
+      for (const s of entry.systems) {
+        if (s.data) {
+          links.push(
+            `<strong>${s.label}:</strong> ` +
+            `<a href="/api/result/${encodeURIComponent(s.data)}" target="_blank" download>${s.data}</a>` +
+            (s.plot ? ` &middot; <a href="/api/result/${encodeURIComponent(s.plot)}" target="_blank" download>${s.plot}</a>` : '') +
+            (s.rep_pdb ? ` &middot; <a href="/api/result/${encodeURIComponent(s.rep_pdb)}" target="_blank" download>${s.rep_pdb}</a>` : '')
+          );
+        }
+      }
+      linksWrap.innerHTML = links.join('<br>');
+      block.appendChild(linksWrap);
+    }
+
+    // Combined plot (overlay analyses)
+    if (entry.plot) {
+      const links = document.createElement('p');
+      links.innerHTML =
+        `Combined plot: <a href="/api/result/${encodeURIComponent(entry.plot)}" target="_blank" download>${entry.plot}</a>`;
+      block.appendChild(links);
+      const img = document.createElement('img');
+      img.src = `/api/result/${encodeURIComponent(entry.plot)}?cb=${Date.now()}`;
+      img.alt = `${name} plot`;
+      block.appendChild(img);
+    }
+
+    // Per-system plots (PCA / Cluster)
+    if (entry.systems && !entry.plot) {
+      for (const s of entry.systems) {
+        if (s.plot) {
+          const lbl = document.createElement('p');
+          lbl.innerHTML = `<strong>${s.label}</strong>`;
+          block.appendChild(lbl);
+          const img = document.createElement('img');
+          img.src = `/api/result/${encodeURIComponent(s.plot)}?cb=${Date.now()}`;
+          img.alt = `${name} ${s.label}`;
+          block.appendChild(img);
+        }
+      }
+    }
+    area.appendChild(block);
   }
 }
 
-refreshStatus();
+// ---- bootstrap ----
+(async function init() {
+  await refreshStatus();
+  renderSystems();
+})();
 </script>
 </body>
 </html>

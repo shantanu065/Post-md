@@ -40,7 +40,7 @@ py -3 -m venv .venv
 ```bash
 # macOS / Linux
 git clone https://github.com/post-md/post-md.git
-cd post-md
+cd Post-md
 python3 -m venv .venv
 source .venv/bin/activate
 ```
