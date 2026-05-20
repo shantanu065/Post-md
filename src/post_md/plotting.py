@@ -194,25 +194,49 @@ def plot_lines_multi(
 
 
 def _force_boundary_ticks_x(ax, x_min: float, x_max: float) -> None:
-    """Guarantee the x-axis labels the data start AND end.
+    """Guarantee the x-axis labels the data start AND end, snapped to a
+    clean integer / "nice" multiple of the auto tick interval.
 
-    matplotlib's `MaxNLocator` picks "nice" round numbers (e.g. 120, 140,
-    160, 180 for data spanning 100–200) and skips the actual data
-    boundaries. For trajectory plots the user needs to see when the run
-    actually started and ended, so we splice the data extremes into the
-    auto-picked tick set, dropping any auto ticks that fall within 5 %
-    of the boundaries (avoids visual crowding).
+    matplotlib's `MaxNLocator` picks tidy round numbers in the middle of
+    the range (e.g. 120, 140, 160, 180 for data spanning 100–200) but
+    skips the actual data boundaries. We want the user to see the run's
+    actual start and end. Snapping the boundary labels to the same step
+    size as the auto-picked ticks keeps the formatting consistent —
+    100.15 → ``100``, 199.15 → ``200`` — instead of leaking decimals
+    into otherwise integer-looking ticks.
     """
+    import math
+
     if not (np.isfinite(x_min) and np.isfinite(x_max)):
         return
     span = x_max - x_min
     if span < 1e-12:
         return
+
     lo, hi = ax.get_xlim()
-    auto = [t for t in ax.get_xticks() if lo - 1e-9 <= t <= hi + 1e-9]
-    tol = span * 0.05
-    auto = [t for t in auto if abs(t - x_min) > tol and abs(t - x_max) > tol]
-    ticks = sorted({float(x_min), float(x_max), *auto})
+    auto = sorted(t for t in ax.get_xticks() if lo - 1e-9 <= t <= hi + 1e-9)
+
+    # Snap step: use the auto tick spacing when matplotlib's locator gave
+    # us at least two ticks, otherwise fall back to ~5 % of the data span.
+    if len(auto) >= 2:
+        step = auto[1] - auto[0]
+    else:
+        step = span / 5.0
+    if step <= 0:
+        return
+
+    nice_min = math.floor(x_min / step) * step
+    nice_max = math.ceil(x_max / step) * step
+
+    # Drop any auto tick that's within half a step of the new boundaries
+    # so the two don't collide / double-label.
+    tol = step * 0.5
+    auto = [t for t in auto if abs(t - nice_min) > tol and abs(t - nice_max) > tol]
+    ticks = sorted({float(nice_min), float(nice_max), *auto})
+
+    # Extend the axis to the snapped boundaries so the labels sit exactly
+    # at the spine edges; the gap is tiny (≤ half a step) and invisible.
+    ax.set_xlim(min(nice_min, lo), max(nice_max, hi))
     ax.set_xticks(ticks)
 
 
