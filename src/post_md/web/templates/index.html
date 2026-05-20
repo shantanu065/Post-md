@@ -4,440 +4,988 @@
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <title>Post_MD — MD trajectory analysis</title>
-<link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/@picocss/pico@2/css/pico.min.css">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Geist:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet">
 <style>
-  :root { --container-max: 1100px; }
-  body { padding: 1.5rem 0; }
-  main.container { max-width: var(--container-max); }
-  h1 { margin-bottom: 0.2rem; }
-  .sub { color: var(--pico-muted-color); margin-top: 0; }
-  article { margin-bottom: 1.5rem; }
-  .grid-2 { display: grid; grid-template-columns: 1fr 1fr; gap: 0.7rem 1rem; }
-  .grid-3 { display: grid; grid-template-columns: 1fr 1fr 1fr; gap: 0.7rem 1rem; }
-  @media (max-width: 720px) {
-    .grid-2, .grid-3 { grid-template-columns: 1fr; }
-  }
-  label small { color: var(--pico-muted-color); }
-  fieldset { border: 1px solid var(--pico-card-border-color); padding: 0.7rem 0.9rem; margin: 0 0 0.7rem 0; border-radius: 6px; background: var(--pico-card-background-color); }
-  fieldset > legend { padding: 0 0.3rem; font-weight: 600; }
-  .mode-row { display: flex; gap: 1.2rem; margin: 0.35rem 0 0.45rem 0; font-size: 0.92rem; }
-  .mode-row label { display: inline-flex; align-items: center; gap: 0.3rem; margin: 0; cursor: pointer; }
-  .mode-pane input[type="text"] { font-family: var(--pico-font-family-monospace); font-size: 0.92rem; }
-  .status-line { font-family: var(--pico-font-family-monospace); font-size: 0.9rem; color: var(--pico-muted-color); }
-  .pill { display: inline-block; background: var(--pico-card-sectioning-background-color); padding: 0.15rem 0.55rem; border-radius: 999px; font-size: 0.82rem; margin-right: 0.3rem; }
-  .pill.ok { background: var(--pico-primary); color: var(--pico-primary-inverse); }
-  .pill.stale { background: var(--pico-del-color); color: #fff; }
-  .files-list a { display: inline-block; margin-right: 1rem; }
-  .error { color: var(--pico-del-color); }
-  .muted { color: var(--pico-muted-color); }
-  .run-row { display: flex; gap: 0.5rem; align-items: center; margin-top: 0.5rem; }
-  .run-row button { white-space: nowrap; }
-  pre.json { font-size: 0.85rem; max-height: 240px; overflow: auto; background: var(--pico-card-sectioning-background-color); padding: 0.6rem; border-radius: 4px; }
-  .path-row { display: flex; gap: 0.4rem; align-items: stretch; }
-  .path-row input[type="text"] { flex: 1; min-width: 0; }
-  .path-row button { white-space: nowrap; }
-  .file-browser {
-    margin-top: 0.5rem;
-    border: 1px solid var(--pico-card-border-color);
-    border-radius: 6px;
-    background: var(--pico-card-sectioning-background-color);
-    font-family: var(--pico-font-family-monospace);
-    font-size: 0.9rem;
-  }
-  .fb-header { display: flex; justify-content: space-between; align-items: center; padding: 0.4rem 0.7rem; border-bottom: 1px solid var(--pico-card-border-color); background: var(--pico-card-background-color); border-radius: 6px 6px 0 0; }
-  .fb-path { overflow-wrap: anywhere; font-weight: 600; }
-  .fb-header button { padding: 0.15rem 0.55rem; font-size: 0.8rem; }
-  .fb-entries { max-height: 280px; overflow-y: auto; }
-  .fb-entry { display: flex; gap: 0.5rem; padding: 0.3rem 0.7rem; cursor: pointer; align-items: center; border-bottom: 1px solid transparent; }
-  .fb-entry:hover { background: var(--pico-primary); color: var(--pico-primary-inverse); }
-  .fb-entry .fb-icon { width: 1.2em; text-align: center; }
-  .fb-entry .fb-size { margin-left: auto; color: var(--pico-muted-color); font-size: 0.82rem; }
-  .fb-entry:hover .fb-size { color: var(--pico-primary-inverse); }
-  .fb-empty { padding: 0.7rem; color: var(--pico-muted-color); font-style: italic; }
-  .fb-go { display: flex; gap: 0.3rem; padding: 0.4rem 0.7rem; border-top: 1px solid var(--pico-card-border-color); }
-  .fb-go input { flex: 1; font-size: 0.85rem; }
-  .fb-go button { padding: 0.15rem 0.55rem; font-size: 0.8rem; }
+/* ============================================================
+   Design tokens — Aurora Glass
+   ============================================================ */
+:root {
+  /* Aurora gradient stops */
+  --aurora-1: #1e1b4b;      /* indigo-950, base                       */
+  --aurora-2: #4c1d95;      /* violet-900, glow                       */
+  --aurora-3: #0d9488;      /* teal-600, glow                         */
 
-  /* multi-system + analysis layout */
-  .system-row { padding: 0.6rem 0.8rem; border: 1px solid var(--pico-card-border-color); border-radius: 6px; margin-bottom: 0.6rem; background: var(--pico-card-background-color); }
-  .system-row > header { display: flex; justify-content: space-between; align-items: center; margin-bottom: 0.4rem; }
-  .system-row .label-input { width: 12rem; font-weight: 600; }
-  .system-row .system-stale { color: var(--pico-del-color); font-size: 0.85rem; margin-top: 0.3rem; }
-  .analysis-block { border: 1px solid var(--pico-card-border-color); border-radius: 6px; margin-bottom: 0.6rem; background: var(--pico-card-background-color); }
-  .analysis-block > header { display: flex; align-items: center; gap: 0.6rem; padding: 0.5rem 0.8rem; cursor: pointer; }
-  .analysis-block > header input[type="checkbox"] { margin: 0; transform: scale(1.1); }
-  .analysis-block > header .title { font-weight: 600; }
-  .analysis-block > header .desc { color: var(--pico-muted-color); font-size: 0.88rem; }
-  .analysis-block .params { padding: 0.2rem 0.8rem 0.8rem 0.8rem; display: none; border-top: 1px solid var(--pico-card-border-color); }
-  .analysis-block.expanded .params { display: block; }
-  .result-block { border: 1px solid var(--pico-card-border-color); border-radius: 6px; padding: 0.6rem 0.8rem; margin-bottom: 0.6rem; background: var(--pico-card-sectioning-background-color); }
-  .result-block h4 { margin: 0 0 0.4rem 0; }
-  .result-block img { max-width: 100%; border: 1px solid var(--pico-card-border-color); border-radius: 6px; }
-  details { background: var(--pico-card-sectioning-background-color); padding: 0.6rem 0.9rem; border-radius: 6px; margin: 0.6rem 0; }
-  details > summary { cursor: pointer; font-weight: 600; }
-  details > div { margin-top: 0.75rem; }
+  /* Glass surfaces */
+  --glass-bg:     rgba(15, 23, 42, 0.55);
+  --glass-bg-2:   rgba(15, 23, 42, 0.72);
+  --glass-bg-3:   rgba(15, 23, 42, 0.85);
+  --glass-border: rgba(255, 255, 255, 0.10);
+  --glass-border-strong: rgba(255, 255, 255, 0.18);
+  --glass-shadow: 0 8px 32px rgba(0, 0, 0, 0.35);
+  --glass-blur:   blur(20px) saturate(140%);
+
+  /* Text */
+  --text:  #f1f5f9;
+  --muted: rgba(241, 245, 249, 0.62);
+  --dim:   rgba(241, 245, 249, 0.40);
+
+  /* Accent */
+  --accent:      #2dd4bf;
+  --accent-2:    #14b8a6;
+  --accent-glow: rgba(45, 212, 191, 0.35);
+  --accent-soft: rgba(45, 212, 191, 0.12);
+
+  /* States */
+  --danger:      #f87171;
+  --danger-soft: rgba(248, 113, 113, 0.14);
+  --ok:          #4ade80;
+  --ok-soft:     rgba(74, 222, 128, 0.14);
+  --warn:        #fbbf24;
+  --warn-soft:   rgba(251, 191, 36, 0.14);
+
+  --sans: "Geist", "Inter", system-ui, -apple-system, "Segoe UI", Roboto, sans-serif;
+  --mono: "JetBrains Mono", "Geist Mono", ui-monospace, "SF Mono", Consolas, monospace;
+}
+
+/* ============================================================
+   Base
+   ============================================================ */
+* { box-sizing: border-box; }
+html, body { height: 100%; margin: 0; }
+body {
+  background: var(--aurora-1);
+  color: var(--text);
+  font-family: var(--sans);
+  font-size: 15px;
+  line-height: 1.5;
+  -webkit-font-smoothing: antialiased;
+  text-rendering: optimizeLegibility;
+}
+
+/* ============================================================
+   Aurora layer (animated)
+   ============================================================ */
+.aurora {
+  position: fixed; inset: -20%; z-index: -1; overflow: hidden;
+  background-color: var(--aurora-1);
+  filter: blur(80px) saturate(150%);
+}
+.aurora::before, .aurora::after {
+  content: ""; position: absolute; inset: 0;
+  background:
+    radial-gradient(circle at 20% 20%, var(--aurora-2) 0%, transparent 40%),
+    radial-gradient(circle at 80% 30%, var(--aurora-3) 0%, transparent 35%),
+    radial-gradient(circle at 50% 80%, var(--aurora-2) 0%, transparent 45%);
+  animation: aurora-drift 32s ease-in-out infinite alternate;
+}
+.aurora::after {
+  animation-duration: 22s;
+  animation-direction: alternate-reverse;
+  opacity: 0.6;
+  filter: hue-rotate(20deg);
+}
+@keyframes aurora-drift {
+  from { transform: translate3d(-3%, -2%, 0) scale(1); }
+  to   { transform: translate3d(4%, 3%, 0) scale(1.08); }
+}
+@media (prefers-reduced-motion: reduce) {
+  .aurora::before, .aurora::after { animation: none; }
+}
+
+/* ============================================================
+   Layout
+   ============================================================ */
+nav.topbar {
+  display: flex; justify-content: space-between; align-items: center;
+  max-width: 960px; margin: 0 auto;
+  padding: 2rem 1.5rem 1.2rem;
+}
+nav.topbar .brand {
+  display: flex; flex-direction: column; gap: 0.15rem;
+}
+nav.topbar .brand-name {
+  font-size: 1.55rem; font-weight: 700; letter-spacing: -0.02em;
+  background: linear-gradient(135deg, #fff 0%, var(--accent) 100%);
+  -webkit-background-clip: text; background-clip: text;
+  color: transparent;
+}
+nav.topbar .brand-tag { color: var(--muted); font-size: 0.86rem; }
+nav.topbar .brand-version {
+  display: inline-block; margin-left: 0.5rem;
+  font-family: var(--mono); font-size: 0.7rem;
+  padding: 0.05rem 0.45rem;
+  border: 1px solid var(--glass-border);
+  border-radius: 999px; color: var(--accent); vertical-align: 2px;
+}
+
+main {
+  max-width: 960px; margin: 0 auto;
+  padding: 0 1.5rem 5rem;
+  display: flex; flex-direction: column; gap: 1.6rem;
+}
+
+/* ============================================================
+   Glass card
+   ============================================================ */
+.glass-card {
+  position: relative;
+  background: var(--glass-bg);
+  -webkit-backdrop-filter: var(--glass-blur);
+          backdrop-filter: var(--glass-blur);
+  border: 1px solid var(--glass-border);
+  border-radius: 16px;
+  box-shadow: var(--glass-shadow);
+  padding: 1.4rem 1.6rem;
+  animation: card-in 350ms ease-out both;
+}
+.glass-card::before {
+  content: ""; position: absolute; inset: 0;
+  border-radius: inherit; pointer-events: none;
+  background: linear-gradient(180deg, rgba(255,255,255,0.06) 0%, transparent 30%);
+}
+.glass-card > * { position: relative; }    /* keep content above ::before */
+.glass-card.nested {
+  background: var(--glass-bg-2);
+  padding: 1rem 1.15rem;
+  border-radius: 12px;
+}
+.glass-card.nested-2 {
+  background: var(--glass-bg-3);
+  padding: 0.75rem 1rem;
+  border-radius: 10px;
+}
+@keyframes card-in {
+  from { opacity: 0; transform: translateY(8px); }
+  to   { opacity: 1; transform: translateY(0);   }
+}
+@media (prefers-reduced-motion: reduce) {
+  .glass-card { animation: none; }
+}
+
+.section-head {
+  display: flex; align-items: center; gap: 0.8rem;
+  margin-bottom: 1rem;
+}
+.section-num {
+  width: 28px; height: 28px;
+  display: inline-flex; align-items: center; justify-content: center;
+  border-radius: 8px;
+  background: var(--accent-soft);
+  color: var(--accent);
+  font-weight: 600; font-size: 0.85rem;
+  border: 1px solid var(--accent);
+  box-shadow: 0 0 14px var(--accent-glow);
+}
+.section-title { font-size: 1.15rem; font-weight: 600; letter-spacing: -0.01em; }
+.section-head .spacer { flex: 1; }
+.section-desc {
+  color: var(--muted); font-size: 0.9rem;
+  margin: -0.3rem 0 1rem 2.6rem;
+}
+
+/* ============================================================
+   Buttons
+   ============================================================ */
+button, .btn {
+  font-family: var(--sans); font-size: 0.92rem; font-weight: 500;
+  padding: 0.5rem 1rem;
+  border-radius: 8px;
+  border: 1px solid var(--glass-border);
+  background: var(--glass-bg-2);
+  color: var(--text);
+  cursor: pointer;
+  transition: background 140ms, border-color 140ms, transform 80ms;
+}
+button:hover, .btn:hover {
+  background: var(--glass-bg-3);
+  border-color: var(--glass-border-strong);
+}
+button:active, .btn:active { transform: translateY(1px); }
+button:focus-visible, .btn:focus-visible {
+  outline: 2px solid var(--accent);
+  outline-offset: 2px;
+}
+button.primary {
+  background: linear-gradient(135deg, var(--accent) 0%, var(--accent-2) 100%);
+  color: #052e2b;
+  border: 1px solid var(--accent);
+  box-shadow: 0 0 18px var(--accent-glow);
+  font-weight: 600;
+}
+button.primary:hover {
+  filter: brightness(1.08);
+  border-color: var(--accent);
+}
+button.ghost {
+  background: transparent;
+  border-color: var(--glass-border);
+  color: var(--muted);
+}
+button.ghost:hover { color: var(--text); }
+button.danger {
+  background: var(--danger-soft);
+  border-color: var(--danger);
+  color: var(--danger);
+}
+button.danger:hover { background: rgba(248, 113, 113, 0.22); }
+button.small {
+  padding: 0.25rem 0.6rem; font-size: 0.82rem;
+}
+
+/* ============================================================
+   Form controls
+   ============================================================ */
+input[type="text"], input[type="number"], select, textarea {
+  font-family: var(--sans);
+  font-size: 0.92rem;
+  width: 100%;
+  padding: 0.5rem 0.7rem;
+  border-radius: 8px;
+  background: rgba(15, 23, 42, 0.55);
+  border: 1px solid var(--glass-border);
+  color: var(--text);
+  transition: border-color 120ms, background 120ms;
+}
+input[type="text"]:focus, input[type="number"]:focus,
+select:focus, textarea:focus {
+  outline: none;
+  border-color: var(--accent);
+  background: rgba(15, 23, 42, 0.75);
+  box-shadow: 0 0 0 3px var(--accent-soft);
+}
+input[type="text"]::placeholder, input[type="number"]::placeholder {
+  color: var(--dim);
+}
+input.mono, input[type="text"].mono, .topology-input, .trajectory-input {
+  font-family: var(--mono); font-size: 0.88rem;
+}
+select {
+  appearance: none;
+  background-image: linear-gradient(45deg, transparent 50%, var(--muted) 50%),
+                    linear-gradient(135deg, var(--muted) 50%, transparent 50%);
+  background-position: calc(100% - 18px) 50%, calc(100% - 12px) 50%;
+  background-size: 6px 6px;
+  background-repeat: no-repeat;
+  padding-right: 2rem;
+}
+select option { background: #1e293b; color: var(--text); }
+input[type="checkbox"] {
+  width: 16px; height: 16px;
+  accent-color: var(--accent);
+  cursor: pointer;
+  margin: 0;
+}
+input[type="color"] {
+  width: 34px; height: 28px; padding: 0; border-radius: 6px; cursor: pointer;
+  border: 1px solid var(--glass-border); background: transparent;
+}
+input[type="file"] {
+  font-family: var(--sans); font-size: 0.88rem;
+  color: var(--muted);
+  background: transparent; border: 1px dashed var(--glass-border);
+  padding: 0.4rem 0.6rem; border-radius: 8px;
+}
+input[type="file"]::file-selector-button {
+  background: var(--glass-bg-3);
+  color: var(--text);
+  border: 1px solid var(--glass-border);
+  border-radius: 6px;
+  padding: 0.3rem 0.7rem;
+  margin-right: 0.6rem;
+  font-family: var(--sans); font-size: 0.85rem;
+  cursor: pointer;
+}
+input[type="file"]::file-selector-button:hover { background: var(--glass-border-strong); }
+
+label { display: block; font-size: 0.88rem; color: var(--muted); }
+label > input, label > select { margin-top: 0.25rem; }
+label small { color: var(--dim); font-size: 0.78rem; }
+
+.grid-2, .grid-3 { display: grid; gap: 0.7rem 1rem; }
+.grid-2 { grid-template-columns: 1fr 1fr; }
+.grid-3 { grid-template-columns: 1fr 1fr 1fr; }
+@media (max-width: 720px) {
+  .grid-2, .grid-3 { grid-template-columns: 1fr; }
+}
+
+/* ============================================================
+   Systems section
+   ============================================================ */
+.systems-list { display: flex; flex-direction: column; gap: 0.7rem; }
+
+.system-row { /* nested glass card */
+  display: flex; flex-direction: column; gap: 0.55rem;
+}
+.system-row > header {
+  display: flex; justify-content: space-between; align-items: center;
+  gap: 0.5rem; flex-wrap: wrap;
+}
+.system-row .label-input {
+  font-weight: 600; max-width: 14rem;
+}
+.system-row .system-stale {
+  color: var(--danger); font-size: 0.85rem;
+  background: var(--danger-soft);
+  padding: 0.4rem 0.7rem; border-radius: 8px;
+  border: 1px solid rgba(248, 113, 113, 0.3);
+}
+
+.path-row { display: flex; gap: 0.4rem; align-items: stretch; }
+.path-row input[type="text"] { flex: 1; min-width: 0; }
+.path-row button { white-space: nowrap; }
+
+.prepare-status {
+  font-family: var(--mono); font-size: 0.82rem; color: var(--muted);
+}
+.prepare-status.error { color: var(--danger); }
+
+/* ============================================================
+   File browser popover
+   ============================================================ */
+.file-browser {
+  margin-top: 0.45rem;
+  background: var(--glass-bg-3);
+  border: 1px solid var(--glass-border);
+  border-radius: 10px;
+  font-family: var(--mono); font-size: 0.85rem;
+  overflow: hidden;
+}
+.fb-header {
+  display: flex; justify-content: space-between; align-items: center;
+  padding: 0.4rem 0.7rem;
+  border-bottom: 1px solid var(--glass-border);
+  background: rgba(0, 0, 0, 0.2);
+}
+.fb-path { font-weight: 500; overflow-wrap: anywhere; color: var(--accent); }
+.fb-entries { max-height: 280px; overflow-y: auto; }
+.fb-entry {
+  display: flex; gap: 0.5rem; align-items: center;
+  padding: 0.3rem 0.7rem;
+  cursor: pointer;
+  border-bottom: 1px solid transparent;
+}
+.fb-entry:hover {
+  background: var(--accent-soft);
+  color: var(--text);
+}
+.fb-entry .fb-icon { width: 1.2em; text-align: center; }
+.fb-entry .fb-size {
+  margin-left: auto; color: var(--dim); font-size: 0.78rem;
+}
+.fb-empty { padding: 0.7rem; color: var(--muted); font-style: italic; }
+.fb-go {
+  display: flex; gap: 0.3rem;
+  padding: 0.4rem 0.7rem;
+  border-top: 1px solid var(--glass-border);
+}
+.fb-go input { flex: 1; font-size: 0.85rem; }
+.fb-go button { padding: 0.25rem 0.6rem; font-size: 0.82rem; }
+
+/* ============================================================
+   Analysis blocks
+   ============================================================ */
+.analyses-list { display: flex; flex-direction: column; gap: 0.55rem; }
+
+.analysis-block {
+  background: var(--glass-bg-2);
+  border: 1px solid var(--glass-border);
+  border-radius: 12px;
+  transition: border-color 160ms, background 160ms;
+}
+.analysis-block:hover { border-color: var(--glass-border-strong); }
+.analysis-block.expanded {
+  border-color: var(--accent);
+  box-shadow: 0 0 18px var(--accent-glow);
+}
+.analysis-block > header {
+  display: flex; align-items: center; gap: 0.7rem;
+  padding: 0.65rem 0.95rem;
+  cursor: pointer;
+  user-select: none;
+}
+.analysis-block > header input[type="checkbox"] {
+  transform: scale(1.1);
+}
+.analysis-block > header .title {
+  font-weight: 600; color: var(--text);
+}
+.analysis-block > header .desc {
+  color: var(--muted); font-size: 0.86rem;
+}
+.analysis-block .params {
+  display: none;
+  padding: 0.6rem 0.95rem 0.95rem;
+  border-top: 1px solid var(--glass-border);
+}
+.analysis-block.expanded .params { display: block; }
+
+details {
+  background: rgba(0,0,0,0.18);
+  border: 1px solid var(--glass-border);
+  padding: 0.55rem 0.8rem;
+  border-radius: 8px;
+  margin-top: 0.7rem;
+}
+details > summary {
+  cursor: pointer; font-weight: 500; font-size: 0.88rem;
+  color: var(--muted);
+  list-style: none;
+}
+details > summary::before {
+  content: "▸"; display: inline-block; margin-right: 0.45rem;
+  transition: transform 120ms;
+}
+details[open] > summary::before { transform: rotate(90deg); }
+details > div { margin-top: 0.6rem; }
+
+/* Run row at bottom of analyses card */
+.run-row {
+  display: flex; align-items: center; gap: 0.7rem;
+  margin-top: 1rem;
+  flex-wrap: wrap;
+}
+.run-row .ai-toggle {
+  display: inline-flex; align-items: center; gap: 0.35rem;
+  color: var(--muted); font-size: 0.88rem;
+  margin: 0;
+}
+.run-row .run-status {
+  font-family: var(--mono); font-size: 0.85rem; color: var(--muted);
+}
+.run-row .run-status.error { color: var(--danger); }
+
+/* ============================================================
+   Results section
+   ============================================================ */
+#results-area { display: flex; flex-direction: column; gap: 0.9rem; margin-top: 0.4rem; }
+#results-area:empty::before {
+  content: "Run an analysis to see results here.";
+  color: var(--dim); font-size: 0.92rem; font-style: italic;
+}
+
+.result-block {
+  background: var(--glass-bg-2);
+  border: 1px solid var(--glass-border);
+  border-radius: 12px;
+  padding: 0.9rem 1.1rem;
+}
+.result-block h4 {
+  margin: 0 0 0.6rem 0;
+  font-size: 0.95rem;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: var(--accent);
+}
+.result-block img {
+  display: block; max-width: 100%;
+  border: 1px solid var(--glass-border);
+  border-radius: 10px;
+  margin-top: 0.45rem;
+  cursor: zoom-in;
+  background: #fff;        /* matplotlib PNGs are usually white-bg */
+}
+.result-block p {
+  margin: 0.3rem 0;
+  font-size: 0.88rem; color: var(--muted);
+}
+.result-block a {
+  color: var(--accent); text-decoration: none;
+  border-bottom: 1px solid transparent;
+  transition: border-color 120ms;
+}
+.result-block a:hover { border-bottom-color: var(--accent); }
+.result-block strong { color: var(--text); }
+.result-block pre.json {
+  font-family: var(--mono); font-size: 0.82rem;
+  max-height: 240px; overflow: auto;
+  background: rgba(0, 0, 0, 0.35);
+  border: 1px solid var(--glass-border);
+  padding: 0.6rem 0.8rem; border-radius: 8px;
+  color: var(--text);
+}
+
+/* Lightbox for full-size plot view */
+.lightbox {
+  position: fixed; inset: 0; z-index: 1000;
+  background: rgba(2, 6, 23, 0.78);
+  -webkit-backdrop-filter: blur(8px);
+          backdrop-filter: blur(8px);
+  display: none; align-items: center; justify-content: center;
+  padding: 2rem;
+}
+.lightbox.open { display: flex; }
+.lightbox img {
+  max-width: 95vw; max-height: 90vh;
+  border-radius: 12px;
+  box-shadow: 0 12px 60px rgba(0,0,0,0.6);
+  background: #fff;
+}
+.lightbox .lb-close {
+  position: absolute; top: 1rem; right: 1.2rem;
+  background: var(--glass-bg-3); color: var(--text);
+  border: 1px solid var(--glass-border);
+  width: 36px; height: 36px; border-radius: 999px;
+  font-size: 1.3rem; line-height: 1;
+}
+
+/* ============================================================
+   Status pills + strip
+   ============================================================ */
+.pills { display: flex; flex-wrap: wrap; gap: 0.4rem; margin-top: 0.8rem; }
+.pill {
+  display: inline-flex; align-items: center; gap: 0.35rem;
+  font-size: 0.82rem; font-family: var(--mono);
+  padding: 0.18rem 0.65rem;
+  border-radius: 999px;
+  background: var(--glass-bg-3);
+  border: 1px solid var(--glass-border);
+  color: var(--muted);
+}
+.pill.ok    { background: var(--ok-soft);    border-color: var(--ok);    color: var(--ok);    }
+.pill.stale { background: var(--danger-soft);border-color: var(--danger);color: var(--danger);}
+
+.status-strip {
+  position: fixed; left: 0; right: 0; bottom: 0;
+  height: 28px;
+  display: flex; align-items: center; justify-content: center;
+  font-family: var(--mono); font-size: 0.82rem;
+  background: rgba(2, 6, 23, 0.65);
+  -webkit-backdrop-filter: blur(12px);
+          backdrop-filter: blur(12px);
+  border-top: 1px solid var(--glass-border);
+  color: var(--muted);
+  z-index: 50;
+  transition: color 200ms, background 200ms;
+}
+.status-strip[data-level="ok"]      { color: var(--ok); }
+.status-strip[data-level="error"]   { color: var(--danger); background: rgba(80, 0, 0, 0.55); }
+.status-strip[data-level="running"] { color: var(--accent); }
+
+footer.pagefoot {
+  text-align: center; color: var(--dim); font-size: 0.82rem;
+  margin: 2rem auto 4rem; max-width: 960px; padding: 0 1.5rem;
+}
+footer.pagefoot code { font-family: var(--mono); color: var(--muted); }
+
+/* Generic helpers */
+.muted { color: var(--muted); }
+.error { color: var(--danger); }
+.spacer { flex: 1; }
+.row { display: flex; align-items: center; gap: 0.5rem; flex-wrap: wrap; }
+
+/* Mobile */
+@media (max-width: 720px) {
+  nav.topbar, main { padding-left: 1rem; padding-right: 1rem; }
+  .glass-card { padding: 1rem 1.1rem; }
+  .section-desc { margin-left: 0; }
+  .section-num { width: 24px; height: 24px; font-size: 0.78rem; }
+  .system-row > header { flex-direction: column; align-items: stretch; }
+}
 </style>
 </head>
 <body>
-<main class="container">
 
-<header>
-  <h1>Post_MD</h1>
-  <p class="sub">Rapid MD trajectory analysis — PCA, clustering, RMSD/RMSF/Rg, with multi-system overlay comparison.</p>
-</header>
+<div class="aurora" aria-hidden="true"></div>
 
-<!-- =========================================================== -->
-<!-- 1. Systems                                                   -->
-<!-- =========================================================== -->
-<article id="systems-card">
-  <header><strong>1. Systems</strong></header>
-  <p class="muted" style="margin-top: -0.4rem;">
-    Add one system per trajectory you want to compare (e.g. WT, Mutant 1, Mutant 2). Each gets its own topology + trajectory file. When more than one system is registered, RMSD / RMSF / Rg plots will overlay all of them on a single graph with a legend. PCA + Cluster run separately per system.
+<nav class="topbar">
+  <div class="brand">
+    <div>
+      <span class="brand-name">Post_MD</span>
+      <span class="brand-version">v0.1</span>
+    </div>
+    <div class="brand-tag">Rapid MD trajectory analysis — PCA · clustering · RMSD/RMSF/Rg/SASA/H-bond</div>
+  </div>
+</nav>
+
+<main>
+
+<!-- ===========================================================
+     1. Systems
+     =========================================================== -->
+<section class="glass-card" id="systems-card">
+  <div class="section-head">
+    <span class="section-num">1</span>
+    <h2 class="section-title">Systems</h2>
+    <span class="spacer"></span>
+    <button id="btn-add-system" class="ghost small">+ Add system</button>
+  </div>
+  <p class="section-desc">
+    Register one or more trajectories you want to compare (e.g. WT, Mutant 1, Mutant 2). Overlay-style analyses (RMSD / RMSF / Rg / SASA / H-bond) plot all systems on one graph. Browse to a file on disk — uploads aren't required for files already on your machine.
   </p>
-  <div id="systems-list"></div>
+
+  <div id="systems-list" class="systems-list"></div>
+
+  <div class="run-row" style="margin-top: 1rem;">
+    <button id="btn-save-systems" class="primary">Save systems</button>
+    <button id="btn-reset" class="ghost">Reset workspace</button>
+    <span id="systems-status" class="run-status"></span>
+  </div>
+  <div class="pills" id="status-pills"></div>
+</section>
+
+<!-- ===========================================================
+     2. Analyses
+     =========================================================== -->
+<section class="glass-card" id="analyses-card">
+  <div class="section-head">
+    <span class="section-num">2</span>
+    <h2 class="section-title">Analyses</h2>
+    <span class="spacer"></span>
+    <button id="btn-run-batch" class="primary">▶ Run checked</button>
+  </div>
+  <p class="section-desc">
+    Tick every analysis you want, fill its parameters, then hit <strong>Run checked</strong>. All ticked analyses run across every saved system in a single batch.
+  </p>
+
+  <div class="analyses-list">
+
+    <!-- INFO -->
+    <div class="analysis-block" data-analysis="info">
+      <header>
+        <input type="checkbox" data-toggle="info">
+        <span class="title">Info</span>
+        <span class="desc">— atom / residue / bond / frame counts per system.</span>
+      </header>
+    </div>
+
+    <!-- RMSD -->
+    <div class="analysis-block" data-analysis="rmsd">
+      <header>
+        <input type="checkbox" data-toggle="rmsd">
+        <span class="title">RMSD</span>
+        <span class="desc">— per-frame RMSD vs a reference frame after Kabsch alignment.</span>
+      </header>
+      <div class="params">
+        <div class="grid-2">
+          <label>Atom selection<br><input type="text" name="selection" value="name CA" data-tab="rmsd"></label>
+          <label>Reference frame<br><input type="number" name="reference" value="0" min="0" data-tab="rmsd"></label>
+          <label>Output format<br>
+            <select name="output_ext" data-tab="rmsd">
+              <option value="dat">.dat (cpptraj)</option>
+              <option value="xvg">.xvg (GROMACS xmgrace)</option>
+              <option value="csv">.csv</option>
+            </select>
+          </label>
+          <label>Time unit<br>
+            <select name="time_unit" data-tab="rmsd">
+              <option value="ps">ps</option><option value="ns">ns</option>
+              <option value="fs">fs</option><option value="us">μs</option>
+            </select>
+          </label>
+        </div>
+        <details>
+          <summary>Plot customisation</summary>
+          <div class="grid-3">
+            <label>Title<br><input type="text" name="title" data-tab="rmsd"></label>
+            <label>X-axis label<br><input type="text" name="xlabel" data-tab="rmsd"></label>
+            <label>Y-axis label<br><input type="text" name="ylabel" data-tab="rmsd"></label>
+            <label>Line color<br><input type="text" name="color" placeholder="#1f77b4 (single-system)" data-tab="rmsd"></label>
+            <label>Line width<br><input type="number" name="linewidth" value="1.6" step="0.1" data-tab="rmsd"></label>
+            <label>Legend label<br><input type="text" name="legend_label" data-tab="rmsd"></label>
+            <label>X min<br><input type="number" step="any" name="xmin" data-tab="rmsd"></label>
+            <label>X max<br><input type="number" step="any" name="xmax" data-tab="rmsd"></label>
+            <label>Y min<br><input type="number" step="any" name="ymin" data-tab="rmsd"></label>
+            <label>Y max<br><input type="number" step="any" name="ymax" data-tab="rmsd"></label>
+            <label>Figure size<br><input type="text" name="figsize" placeholder="7.5x4.5" data-tab="rmsd"></label>
+            <label>DPI<br><input type="number" name="dpi" value="150" data-tab="rmsd"></label>
+            <label>Font size<br><input type="number" name="font_size" value="12" data-tab="rmsd"></label>
+            <label><input type="checkbox" name="no_grid" data-tab="rmsd"> Hide grid</label>
+            <label><input type="checkbox" name="no_plot" data-tab="rmsd"> Skip plot (data only)</label>
+          </div>
+        </details>
+      </div>
+    </div>
+
+    <!-- RMSF -->
+    <div class="analysis-block" data-analysis="rmsf">
+      <header>
+        <input type="checkbox" data-toggle="rmsf">
+        <span class="title">RMSF</span>
+        <span class="desc">— per-residue (default) or per-atom fluctuation about the mean structure.</span>
+      </header>
+      <div class="params">
+        <div class="grid-2">
+          <label>Atom selection<br><input type="text" name="selection" value="protein" data-tab="rmsf"></label>
+          <label>Output format<br>
+            <select name="output_ext" data-tab="rmsf">
+              <option value="dat">.dat</option><option value="xvg">.xvg</option><option value="csv">.csv</option>
+            </select>
+          </label>
+          <label><input type="checkbox" name="per_atom" data-tab="rmsf"> Per-atom <small>(default: per-residue, mass-weighted mean)</small></label>
+        </div>
+        <details>
+          <summary>Plot customisation</summary>
+          <div class="grid-3">
+            <label>Title<br><input type="text" name="title" data-tab="rmsf"></label>
+            <label>X-axis label<br><input type="text" name="xlabel" data-tab="rmsf"></label>
+            <label>Y-axis label<br><input type="text" name="ylabel" data-tab="rmsf"></label>
+            <label>Line color<br><input type="text" name="color" data-tab="rmsf"></label>
+            <label>Line width<br><input type="number" name="linewidth" value="1.6" step="0.1" data-tab="rmsf"></label>
+            <label>Legend label<br><input type="text" name="legend_label" data-tab="rmsf"></label>
+            <label>X min<br><input type="number" step="any" name="xmin" data-tab="rmsf"></label>
+            <label>X max<br><input type="number" step="any" name="xmax" data-tab="rmsf"></label>
+            <label>Y min<br><input type="number" step="any" name="ymin" data-tab="rmsf"></label>
+            <label>Y max<br><input type="number" step="any" name="ymax" data-tab="rmsf"></label>
+            <label>Figure size<br><input type="text" name="figsize" placeholder="7.5x4.5" data-tab="rmsf"></label>
+            <label>DPI<br><input type="number" name="dpi" value="150" data-tab="rmsf"></label>
+            <label>Font size<br><input type="number" name="font_size" value="12" data-tab="rmsf"></label>
+            <label><input type="checkbox" name="no_grid" data-tab="rmsf"> Hide grid</label>
+            <label><input type="checkbox" name="no_plot" data-tab="rmsf"> Skip plot</label>
+          </div>
+        </details>
+      </div>
+    </div>
+
+    <!-- Rg -->
+    <div class="analysis-block" data-analysis="rg">
+      <header>
+        <input type="checkbox" data-toggle="rg">
+        <span class="title">Rg</span>
+        <span class="desc">— mass-weighted radius of gyration per frame.</span>
+      </header>
+      <div class="params">
+        <div class="grid-2">
+          <label>Atom selection<br><input type="text" name="selection" value="protein" data-tab="rg"></label>
+          <label>Output format<br>
+            <select name="output_ext" data-tab="rg">
+              <option value="dat">.dat</option><option value="xvg">.xvg</option><option value="csv">.csv</option>
+            </select>
+          </label>
+          <label>Time unit<br>
+            <select name="time_unit" data-tab="rg">
+              <option value="ps">ps</option><option value="ns">ns</option>
+              <option value="fs">fs</option><option value="us">μs</option>
+            </select>
+          </label>
+        </div>
+        <details>
+          <summary>Plot customisation</summary>
+          <div class="grid-3">
+            <label>Title<br><input type="text" name="title" data-tab="rg"></label>
+            <label>X-axis label<br><input type="text" name="xlabel" data-tab="rg"></label>
+            <label>Y-axis label<br><input type="text" name="ylabel" data-tab="rg"></label>
+            <label>Line color<br><input type="text" name="color" data-tab="rg"></label>
+            <label>Line width<br><input type="number" name="linewidth" value="1.6" step="0.1" data-tab="rg"></label>
+            <label>Legend label<br><input type="text" name="legend_label" data-tab="rg"></label>
+            <label>X min<br><input type="number" step="any" name="xmin" data-tab="rg"></label>
+            <label>X max<br><input type="number" step="any" name="xmax" data-tab="rg"></label>
+            <label>Y min<br><input type="number" step="any" name="ymin" data-tab="rg"></label>
+            <label>Y max<br><input type="number" step="any" name="ymax" data-tab="rg"></label>
+            <label>Figure size<br><input type="text" name="figsize" data-tab="rg"></label>
+            <label>DPI<br><input type="number" name="dpi" value="150" data-tab="rg"></label>
+            <label>Font size<br><input type="number" name="font_size" value="12" data-tab="rg"></label>
+            <label><input type="checkbox" name="no_grid" data-tab="rg"> Hide grid</label>
+            <label><input type="checkbox" name="no_plot" data-tab="rg"> Skip plot</label>
+          </div>
+        </details>
+      </div>
+    </div>
+
+    <!-- SASA -->
+    <div class="analysis-block" data-analysis="sasa">
+      <header>
+        <input type="checkbox" data-toggle="sasa">
+        <span class="title">SASA</span>
+        <span class="desc">— Shrake-Rupley solvent-accessible surface area per frame.</span>
+      </header>
+      <div class="params">
+        <div class="grid-3">
+          <label>Atom selection<br><input type="text" name="selection" value="protein" data-tab="sasa"></label>
+          <label>Probe radius (Å) <small>1.4 = water</small><br><input type="number" step="0.1" name="probe_radius" value="1.4" data-tab="sasa"></label>
+          <label>Sphere points <small>96 = fast / 256 = pub-grade</small><br><input type="number" name="n_sphere_points" value="96" min="20" max="512" data-tab="sasa"></label>
+          <label>Output format<br>
+            <select name="output_ext" data-tab="sasa">
+              <option value="dat">.dat</option><option value="xvg">.xvg</option><option value="csv">.csv</option>
+            </select>
+          </label>
+          <label>Time unit<br>
+            <select name="time_unit" data-tab="sasa">
+              <option value="ps">ps</option><option value="ns">ns</option>
+              <option value="fs">fs</option><option value="us">μs</option>
+            </select>
+          </label>
+        </div>
+        <details>
+          <summary>Plot customisation</summary>
+          <div class="grid-3">
+            <label>Title<br><input type="text" name="title" data-tab="sasa"></label>
+            <label>X-axis label<br><input type="text" name="xlabel" data-tab="sasa"></label>
+            <label>Y-axis label<br><input type="text" name="ylabel" data-tab="sasa"></label>
+            <label>Line color<br><input type="text" name="color" data-tab="sasa"></label>
+            <label>Line width<br><input type="number" name="linewidth" value="1.6" step="0.1" data-tab="sasa"></label>
+            <label>Legend label<br><input type="text" name="legend_label" data-tab="sasa"></label>
+            <label>X min<br><input type="number" step="any" name="xmin" data-tab="sasa"></label>
+            <label>X max<br><input type="number" step="any" name="xmax" data-tab="sasa"></label>
+            <label>Y min<br><input type="number" step="any" name="ymin" data-tab="sasa"></label>
+            <label>Y max<br><input type="number" step="any" name="ymax" data-tab="sasa"></label>
+            <label>Figure size<br><input type="text" name="figsize" placeholder="7.5x4.5" data-tab="sasa"></label>
+            <label>DPI<br><input type="number" name="dpi" value="150" data-tab="sasa"></label>
+            <label>Font size<br><input type="number" name="font_size" value="12" data-tab="sasa"></label>
+            <label><input type="checkbox" name="no_grid" data-tab="sasa"> Hide grid</label>
+            <label><input type="checkbox" name="no_plot" data-tab="sasa"> Skip plot</label>
+          </div>
+        </details>
+      </div>
+    </div>
+
+    <!-- H-bond -->
+    <div class="analysis-block" data-analysis="hbond">
+      <header>
+        <input type="checkbox" data-toggle="hbond">
+        <span class="title">H-bond</span>
+        <span class="desc">— per-frame H-bond count using geometric D-H-A criteria.</span>
+      </header>
+      <div class="params">
+        <div class="grid-3">
+          <label>Atom selection<br><input type="text" name="selection" value="protein" data-tab="hbond"></label>
+          <label>D-A distance cutoff (Å)<br><input type="number" step="0.1" name="d_a_cutoff" value="3.5" data-tab="hbond"></label>
+          <label>D-H-A angle cutoff (°)<br><input type="number" step="1" name="angle_cutoff" value="150" data-tab="hbond"></label>
+          <label>Output format<br>
+            <select name="output_ext" data-tab="hbond">
+              <option value="dat">.dat</option><option value="xvg">.xvg</option><option value="csv">.csv</option>
+            </select>
+          </label>
+          <label>Time unit<br>
+            <select name="time_unit" data-tab="hbond">
+              <option value="ps">ps</option><option value="ns">ns</option>
+              <option value="fs">fs</option><option value="us">μs</option>
+            </select>
+          </label>
+        </div>
+        <details>
+          <summary>Plot customisation</summary>
+          <div class="grid-3">
+            <label>Title<br><input type="text" name="title" data-tab="hbond"></label>
+            <label>X-axis label<br><input type="text" name="xlabel" data-tab="hbond"></label>
+            <label>Y-axis label<br><input type="text" name="ylabel" data-tab="hbond"></label>
+            <label>Line color<br><input type="text" name="color" data-tab="hbond"></label>
+            <label>Line width<br><input type="number" name="linewidth" value="1.6" step="0.1" data-tab="hbond"></label>
+            <label>Legend label<br><input type="text" name="legend_label" data-tab="hbond"></label>
+            <label>X min<br><input type="number" step="any" name="xmin" data-tab="hbond"></label>
+            <label>X max<br><input type="number" step="any" name="xmax" data-tab="hbond"></label>
+            <label>Y min<br><input type="number" step="any" name="ymin" data-tab="hbond"></label>
+            <label>Y max<br><input type="number" step="any" name="ymax" data-tab="hbond"></label>
+            <label>Figure size<br><input type="text" name="figsize" placeholder="7.5x4.5" data-tab="hbond"></label>
+            <label>DPI<br><input type="number" name="dpi" value="150" data-tab="hbond"></label>
+            <label>Font size<br><input type="number" name="font_size" value="12" data-tab="hbond"></label>
+            <label><input type="checkbox" name="no_grid" data-tab="hbond"> Hide grid</label>
+            <label><input type="checkbox" name="no_plot" data-tab="hbond"> Skip plot</label>
+          </div>
+        </details>
+      </div>
+    </div>
+
+    <!-- PCA -->
+    <div class="analysis-block" data-analysis="pca">
+      <header>
+        <input type="checkbox" data-toggle="pca">
+        <span class="title">PCA</span>
+        <span class="desc">— Cartesian PCA per system (saved as <code>pca[_label].npz</code>).</span>
+      </header>
+      <div class="params">
+        <div class="grid-2">
+          <label>Atom selection<br><input type="text" name="selection" value="name CA" data-tab="pca"></label>
+          <label>Number of components<br><input type="number" name="n_components" value="10" min="1" data-tab="pca"></label>
+        </div>
+        <details>
+          <summary>Plot customisation</summary>
+          <div class="grid-3">
+            <label>Title<br><input type="text" name="title" data-tab="pca"></label>
+            <label>X label (scatter)<br><input type="text" name="xlabel" placeholder="PC1" data-tab="pca"></label>
+            <label>Y label (scatter)<br><input type="text" name="ylabel" placeholder="PC2" data-tab="pca"></label>
+            <label>Scree color<br><input type="text" name="color" placeholder="steelblue" data-tab="pca"></label>
+            <label>Cumulative color<br><input type="text" name="accent_color" placeholder="darkorange" data-tab="pca"></label>
+            <label>Scatter cmap<br><input type="text" name="cmap" placeholder="viridis" data-tab="pca"></label>
+            <label>Line width<br><input type="number" name="linewidth" value="1.6" step="0.1" data-tab="pca"></label>
+            <label>Figure size<br><input type="text" name="figsize" placeholder="12x4.5" data-tab="pca"></label>
+            <label>DPI<br><input type="number" name="dpi" value="150" data-tab="pca"></label>
+            <label>Font size<br><input type="number" name="font_size" value="12" data-tab="pca"></label>
+            <label><input type="checkbox" name="no_grid" data-tab="pca"> Hide grid</label>
+            <label><input type="checkbox" name="no_plot" data-tab="pca"> Skip plot</label>
+          </div>
+        </details>
+      </div>
+    </div>
+
+    <!-- Cluster -->
+    <div class="analysis-block" data-analysis="cluster">
+      <header>
+        <input type="checkbox" data-toggle="cluster">
+        <span class="title">Cluster</span>
+        <span class="desc">— K-means on each system's PCA projections (PCA must be ticked in the same batch, or already on disk).</span>
+      </header>
+      <div class="params">
+        <div class="grid-3">
+          <label>k (clusters)<br><input type="number" name="k" value="5" min="1" data-tab="cluster"></label>
+          <label>Number of PCs<br><input type="number" name="n_pcs" value="10" min="1" data-tab="cluster"></label>
+          <label>Random seed<br><input type="number" name="seed" value="0" data-tab="cluster"></label>
+          <label>Output format<br>
+            <select name="output_ext" data-tab="cluster">
+              <option value="dat">.dat</option><option value="xvg">.xvg</option><option value="csv">.csv</option>
+            </select>
+          </label>
+          <label><input type="checkbox" name="rep_pdb" data-tab="cluster" checked> Write rep-frame PDB</label>
+        </div>
+        <details>
+          <summary>Plot customisation</summary>
+          <div class="grid-3">
+            <label>Title<br><input type="text" name="title" data-tab="cluster"></label>
+            <label>X label<br><input type="text" name="xlabel" placeholder="PC1" data-tab="cluster"></label>
+            <label>Y label<br><input type="text" name="ylabel" placeholder="PC2" data-tab="cluster"></label>
+            <label>Center color<br><input type="text" name="color" placeholder="black" data-tab="cluster"></label>
+            <label>Rep color<br><input type="text" name="accent_color" placeholder="red" data-tab="cluster"></label>
+            <label>Cluster cmap<br><input type="text" name="cmap" placeholder="tab10" data-tab="cluster"></label>
+            <label>Figure size<br><input type="text" name="figsize" placeholder="7.5x6" data-tab="cluster"></label>
+            <label>DPI<br><input type="number" name="dpi" value="150" data-tab="cluster"></label>
+            <label>Font size<br><input type="number" name="font_size" value="12" data-tab="cluster"></label>
+            <label><input type="checkbox" name="no_grid" data-tab="cluster"> Hide grid</label>
+            <label><input type="checkbox" name="no_plot" data-tab="cluster"> Skip plot</label>
+          </div>
+        </details>
+      </div>
+    </div>
+
+  </div><!-- /.analyses-list -->
+
   <div class="run-row">
-    <button id="btn-add-system" class="secondary">+ Add system</button>
-    <button id="btn-save-systems">Save systems</button>
-    <button id="btn-reset" class="secondary outline">Reset workspace</button>
-    <span id="systems-status" class="status-line"></span>
-  </div>
-  <p class="status-line" style="margin-top: 0.5rem;">
-    <span id="status-pills"></span>
-  </p>
-</article>
-
-<!-- =========================================================== -->
-<!-- 2. Analyses                                                  -->
-<!-- =========================================================== -->
-<article id="analyses-card">
-  <header><strong>2. Analyses</strong></header>
-  <p class="muted" style="margin-top: -0.4rem;">
-    Tick every analysis you want, fill in its parameters, then hit <strong>Run analysis</strong> once. All ticked analyses run across all systems in a single batch.
-  </p>
-
-  <!-- INFO -->
-  <div class="analysis-block" data-analysis="info">
-    <header>
-      <input type="checkbox" data-toggle="info">
-      <span class="title">Info</span>
-      <span class="desc">— atom / residue / bond / frame counts for system 1.</span>
-    </header>
-  </div>
-
-  <!-- RMSD -->
-  <div class="analysis-block" data-analysis="rmsd">
-    <header>
-      <input type="checkbox" data-toggle="rmsd">
-      <span class="title">RMSD</span>
-      <span class="desc">— per-frame RMSD vs a reference frame after Kabsch alignment.</span>
-    </header>
-    <div class="params">
-      <div class="grid-2">
-        <label>Atom selection<br><input type="text" name="selection" value="name CA" data-tab="rmsd"></label>
-        <label>Reference frame<br><input type="number" name="reference" value="0" min="0" data-tab="rmsd"></label>
-        <label>Output format<br>
-          <select name="output_ext" data-tab="rmsd">
-            <option value="dat">.dat (cpptraj)</option>
-            <option value="xvg">.xvg (GROMACS xmgrace)</option>
-            <option value="csv">.csv</option>
-          </select>
-        </label>
-        <label>Time unit<br>
-          <select name="time_unit" data-tab="rmsd">
-            <option value="ps">ps</option><option value="ns">ns</option>
-            <option value="fs">fs</option><option value="us">μs</option>
-          </select>
-        </label>
-      </div>
-      <details>
-        <summary>Plot customisation</summary>
-        <div class="grid-3">
-          <label>Title<br><input type="text" name="title" data-tab="rmsd"></label>
-          <label>X-axis label<br><input type="text" name="xlabel" data-tab="rmsd"></label>
-          <label>Y-axis label<br><input type="text" name="ylabel" data-tab="rmsd"></label>
-          <label>Line color<br><input type="text" name="color" placeholder="#1f77b4 (single-system)" data-tab="rmsd"></label>
-          <label>Line width<br><input type="number" name="linewidth" value="1.6" step="0.1" data-tab="rmsd"></label>
-          <label>Legend label<br><input type="text" name="legend_label" data-tab="rmsd"></label>
-          <label>X min<br><input type="number" step="any" name="xmin" data-tab="rmsd"></label>
-          <label>X max<br><input type="number" step="any" name="xmax" data-tab="rmsd"></label>
-          <label>Y min<br><input type="number" step="any" name="ymin" data-tab="rmsd"></label>
-          <label>Y max<br><input type="number" step="any" name="ymax" data-tab="rmsd"></label>
-          <label>Figure size<br><input type="text" name="figsize" placeholder="7.5x4.5" data-tab="rmsd"></label>
-          <label>DPI<br><input type="number" name="dpi" value="150" data-tab="rmsd"></label>
-          <label>Font size<br><input type="number" name="font_size" value="12" data-tab="rmsd"></label>
-          <label><input type="checkbox" name="no_grid" data-tab="rmsd"> Hide grid</label>
-          <label><input type="checkbox" name="no_plot" data-tab="rmsd"> Skip plot (data only)</label>
-        </div>
-      </details>
-    </div>
-  </div>
-
-  <!-- RMSF -->
-  <div class="analysis-block" data-analysis="rmsf">
-    <header>
-      <input type="checkbox" data-toggle="rmsf">
-      <span class="title">RMSF</span>
-      <span class="desc">— per-residue (default) or per-atom fluctuation about the mean structure.</span>
-    </header>
-    <div class="params">
-      <div class="grid-2">
-        <label>Atom selection<br><input type="text" name="selection" value="protein" data-tab="rmsf"></label>
-        <label>Output format<br>
-          <select name="output_ext" data-tab="rmsf">
-            <option value="dat">.dat</option><option value="xvg">.xvg</option><option value="csv">.csv</option>
-          </select>
-        </label>
-        <label><input type="checkbox" name="per_atom" data-tab="rmsf"> Per-atom <small>(default: per-residue, mass-weighted mean)</small></label>
-      </div>
-      <details>
-        <summary>Plot customisation</summary>
-        <div class="grid-3">
-          <label>Title<br><input type="text" name="title" data-tab="rmsf"></label>
-          <label>X-axis label<br><input type="text" name="xlabel" data-tab="rmsf"></label>
-          <label>Y-axis label<br><input type="text" name="ylabel" data-tab="rmsf"></label>
-          <label>Line color<br><input type="text" name="color" data-tab="rmsf"></label>
-          <label>Line width<br><input type="number" name="linewidth" value="1.6" step="0.1" data-tab="rmsf"></label>
-          <label>Legend label<br><input type="text" name="legend_label" data-tab="rmsf"></label>
-          <label>X min<br><input type="number" step="any" name="xmin" data-tab="rmsf"></label>
-          <label>X max<br><input type="number" step="any" name="xmax" data-tab="rmsf"></label>
-          <label>Y min<br><input type="number" step="any" name="ymin" data-tab="rmsf"></label>
-          <label>Y max<br><input type="number" step="any" name="ymax" data-tab="rmsf"></label>
-          <label>Figure size<br><input type="text" name="figsize" placeholder="7.5x4.5" data-tab="rmsf"></label>
-          <label>DPI<br><input type="number" name="dpi" value="150" data-tab="rmsf"></label>
-          <label>Font size<br><input type="number" name="font_size" value="12" data-tab="rmsf"></label>
-          <label><input type="checkbox" name="no_grid" data-tab="rmsf"> Hide grid</label>
-          <label><input type="checkbox" name="no_plot" data-tab="rmsf"> Skip plot</label>
-        </div>
-      </details>
-    </div>
-  </div>
-
-  <!-- Rg -->
-  <div class="analysis-block" data-analysis="rg">
-    <header>
-      <input type="checkbox" data-toggle="rg">
-      <span class="title">Rg</span>
-      <span class="desc">— mass-weighted radius of gyration per frame.</span>
-    </header>
-    <div class="params">
-      <div class="grid-2">
-        <label>Atom selection<br><input type="text" name="selection" value="protein" data-tab="rg"></label>
-        <label>Output format<br>
-          <select name="output_ext" data-tab="rg">
-            <option value="dat">.dat</option><option value="xvg">.xvg</option><option value="csv">.csv</option>
-          </select>
-        </label>
-        <label>Time unit<br>
-          <select name="time_unit" data-tab="rg">
-            <option value="ps">ps</option><option value="ns">ns</option>
-            <option value="fs">fs</option><option value="us">μs</option>
-          </select>
-        </label>
-      </div>
-      <details>
-        <summary>Plot customisation</summary>
-        <div class="grid-3">
-          <label>Title<br><input type="text" name="title" data-tab="rg"></label>
-          <label>X-axis label<br><input type="text" name="xlabel" data-tab="rg"></label>
-          <label>Y-axis label<br><input type="text" name="ylabel" data-tab="rg"></label>
-          <label>Line color<br><input type="text" name="color" data-tab="rg"></label>
-          <label>Line width<br><input type="number" name="linewidth" value="1.6" step="0.1" data-tab="rg"></label>
-          <label>Legend label<br><input type="text" name="legend_label" data-tab="rg"></label>
-          <label>X min<br><input type="number" step="any" name="xmin" data-tab="rg"></label>
-          <label>X max<br><input type="number" step="any" name="xmax" data-tab="rg"></label>
-          <label>Y min<br><input type="number" step="any" name="ymin" data-tab="rg"></label>
-          <label>Y max<br><input type="number" step="any" name="ymax" data-tab="rg"></label>
-          <label>Figure size<br><input type="text" name="figsize" data-tab="rg"></label>
-          <label>DPI<br><input type="number" name="dpi" value="150" data-tab="rg"></label>
-          <label>Font size<br><input type="number" name="font_size" value="12" data-tab="rg"></label>
-          <label><input type="checkbox" name="no_grid" data-tab="rg"> Hide grid</label>
-          <label><input type="checkbox" name="no_plot" data-tab="rg"> Skip plot</label>
-        </div>
-      </details>
-    </div>
-  </div>
-
-  <!-- SASA -->
-  <div class="analysis-block" data-analysis="sasa">
-    <header>
-      <input type="checkbox" data-toggle="sasa">
-      <span class="title">SASA</span>
-      <span class="desc">— Shrake-Rupley solvent-accessible surface area per frame.</span>
-    </header>
-    <div class="params">
-      <div class="grid-3">
-        <label>Atom selection<br><input type="text" name="selection" value="protein" data-tab="sasa"></label>
-        <label>Probe radius (Å) <small>1.4 = water</small><br><input type="number" step="0.1" name="probe_radius" value="1.4" data-tab="sasa"></label>
-        <label>Sphere points <small>96 = fast / 256 = pub-grade</small><br><input type="number" name="n_sphere_points" value="96" min="20" max="512" data-tab="sasa"></label>
-        <label>Output format<br>
-          <select name="output_ext" data-tab="sasa">
-            <option value="dat">.dat</option><option value="xvg">.xvg</option><option value="csv">.csv</option>
-          </select>
-        </label>
-        <label>Time unit<br>
-          <select name="time_unit" data-tab="sasa">
-            <option value="ps">ps</option><option value="ns">ns</option>
-            <option value="fs">fs</option><option value="us">μs</option>
-          </select>
-        </label>
-      </div>
-      <details>
-        <summary>Plot customisation</summary>
-        <div class="grid-3">
-          <label>Title<br><input type="text" name="title" data-tab="sasa"></label>
-          <label>X-axis label<br><input type="text" name="xlabel" data-tab="sasa"></label>
-          <label>Y-axis label<br><input type="text" name="ylabel" data-tab="sasa"></label>
-          <label>Line color<br><input type="text" name="color" data-tab="sasa"></label>
-          <label>Line width<br><input type="number" name="linewidth" value="1.6" step="0.1" data-tab="sasa"></label>
-          <label>Legend label<br><input type="text" name="legend_label" data-tab="sasa"></label>
-          <label>X min<br><input type="number" step="any" name="xmin" data-tab="sasa"></label>
-          <label>X max<br><input type="number" step="any" name="xmax" data-tab="sasa"></label>
-          <label>Y min<br><input type="number" step="any" name="ymin" data-tab="sasa"></label>
-          <label>Y max<br><input type="number" step="any" name="ymax" data-tab="sasa"></label>
-          <label>Figure size<br><input type="text" name="figsize" placeholder="7.5x4.5" data-tab="sasa"></label>
-          <label>DPI<br><input type="number" name="dpi" value="150" data-tab="sasa"></label>
-          <label>Font size<br><input type="number" name="font_size" value="12" data-tab="sasa"></label>
-          <label><input type="checkbox" name="no_grid" data-tab="sasa"> Hide grid</label>
-          <label><input type="checkbox" name="no_plot" data-tab="sasa"> Skip plot</label>
-        </div>
-      </details>
-    </div>
-  </div>
-
-  <!-- H-bond -->
-  <div class="analysis-block" data-analysis="hbond">
-    <header>
-      <input type="checkbox" data-toggle="hbond">
-      <span class="title">H-bond</span>
-      <span class="desc">— per-frame H-bond count using geometric D-H-A criteria.</span>
-    </header>
-    <div class="params">
-      <div class="grid-3">
-        <label>Atom selection<br><input type="text" name="selection" value="protein" data-tab="hbond"></label>
-        <label>D-A distance cutoff (Å)<br><input type="number" step="0.1" name="d_a_cutoff" value="3.5" data-tab="hbond"></label>
-        <label>D-H-A angle cutoff (°)<br><input type="number" step="1" name="angle_cutoff" value="150" data-tab="hbond"></label>
-        <label>Output format<br>
-          <select name="output_ext" data-tab="hbond">
-            <option value="dat">.dat</option><option value="xvg">.xvg</option><option value="csv">.csv</option>
-          </select>
-        </label>
-        <label>Time unit<br>
-          <select name="time_unit" data-tab="hbond">
-            <option value="ps">ps</option><option value="ns">ns</option>
-            <option value="fs">fs</option><option value="us">μs</option>
-          </select>
-        </label>
-      </div>
-      <details>
-        <summary>Plot customisation</summary>
-        <div class="grid-3">
-          <label>Title<br><input type="text" name="title" data-tab="hbond"></label>
-          <label>X-axis label<br><input type="text" name="xlabel" data-tab="hbond"></label>
-          <label>Y-axis label<br><input type="text" name="ylabel" data-tab="hbond"></label>
-          <label>Line color<br><input type="text" name="color" data-tab="hbond"></label>
-          <label>Line width<br><input type="number" name="linewidth" value="1.6" step="0.1" data-tab="hbond"></label>
-          <label>Legend label<br><input type="text" name="legend_label" data-tab="hbond"></label>
-          <label>X min<br><input type="number" step="any" name="xmin" data-tab="hbond"></label>
-          <label>X max<br><input type="number" step="any" name="xmax" data-tab="hbond"></label>
-          <label>Y min<br><input type="number" step="any" name="ymin" data-tab="hbond"></label>
-          <label>Y max<br><input type="number" step="any" name="ymax" data-tab="hbond"></label>
-          <label>Figure size<br><input type="text" name="figsize" placeholder="7.5x4.5" data-tab="hbond"></label>
-          <label>DPI<br><input type="number" name="dpi" value="150" data-tab="hbond"></label>
-          <label>Font size<br><input type="number" name="font_size" value="12" data-tab="hbond"></label>
-          <label><input type="checkbox" name="no_grid" data-tab="hbond"> Hide grid</label>
-          <label><input type="checkbox" name="no_plot" data-tab="hbond"> Skip plot</label>
-        </div>
-      </details>
-    </div>
-  </div>
-
-  <!-- PCA -->
-  <div class="analysis-block" data-analysis="pca">
-    <header>
-      <input type="checkbox" data-toggle="pca">
-      <span class="title">PCA</span>
-      <span class="desc">— Cartesian PCA per system (saved as <code>pca[_label].npz</code>).</span>
-    </header>
-    <div class="params">
-      <div class="grid-2">
-        <label>Atom selection<br><input type="text" name="selection" value="name CA" data-tab="pca"></label>
-        <label>Number of components<br><input type="number" name="n_components" value="10" min="1" data-tab="pca"></label>
-      </div>
-      <details>
-        <summary>Plot customisation</summary>
-        <div class="grid-3">
-          <label>Title<br><input type="text" name="title" data-tab="pca"></label>
-          <label>X label (scatter)<br><input type="text" name="xlabel" placeholder="PC1" data-tab="pca"></label>
-          <label>Y label (scatter)<br><input type="text" name="ylabel" placeholder="PC2" data-tab="pca"></label>
-          <label>Scree color<br><input type="text" name="color" placeholder="steelblue" data-tab="pca"></label>
-          <label>Cumulative color<br><input type="text" name="accent_color" placeholder="darkorange" data-tab="pca"></label>
-          <label>Scatter cmap<br><input type="text" name="cmap" placeholder="viridis" data-tab="pca"></label>
-          <label>Line width<br><input type="number" name="linewidth" value="1.6" step="0.1" data-tab="pca"></label>
-          <label>Figure size<br><input type="text" name="figsize" placeholder="12x4.5" data-tab="pca"></label>
-          <label>DPI<br><input type="number" name="dpi" value="150" data-tab="pca"></label>
-          <label>Font size<br><input type="number" name="font_size" value="12" data-tab="pca"></label>
-          <label><input type="checkbox" name="no_grid" data-tab="pca"> Hide grid</label>
-          <label><input type="checkbox" name="no_plot" data-tab="pca"> Skip plot</label>
-        </div>
-      </details>
-    </div>
-  </div>
-
-  <!-- Cluster -->
-  <div class="analysis-block" data-analysis="cluster">
-    <header>
-      <input type="checkbox" data-toggle="cluster">
-      <span class="title">Cluster</span>
-      <span class="desc">— K-means on each system's PCA projections (PCA must be ticked in the same batch, or already on disk).</span>
-    </header>
-    <div class="params">
-      <div class="grid-3">
-        <label>k (clusters)<br><input type="number" name="k" value="5" min="1" data-tab="cluster"></label>
-        <label>Number of PCs<br><input type="number" name="n_pcs" value="10" min="1" data-tab="cluster"></label>
-        <label>Random seed<br><input type="number" name="seed" value="0" data-tab="cluster"></label>
-        <label>Output format<br>
-          <select name="output_ext" data-tab="cluster">
-            <option value="dat">.dat</option><option value="xvg">.xvg</option><option value="csv">.csv</option>
-          </select>
-        </label>
-        <label><input type="checkbox" name="rep_pdb" data-tab="cluster" checked> Write rep-frame PDB</label>
-      </div>
-      <details>
-        <summary>Plot customisation</summary>
-        <div class="grid-3">
-          <label>Title<br><input type="text" name="title" data-tab="cluster"></label>
-          <label>X label<br><input type="text" name="xlabel" placeholder="PC1" data-tab="cluster"></label>
-          <label>Y label<br><input type="text" name="ylabel" placeholder="PC2" data-tab="cluster"></label>
-          <label>Center color<br><input type="text" name="color" placeholder="black" data-tab="cluster"></label>
-          <label>Rep color<br><input type="text" name="accent_color" placeholder="red" data-tab="cluster"></label>
-          <label>Cluster cmap<br><input type="text" name="cmap" placeholder="tab10" data-tab="cluster"></label>
-          <label>Figure size<br><input type="text" name="figsize" placeholder="7.5x6" data-tab="cluster"></label>
-          <label>DPI<br><input type="number" name="dpi" value="150" data-tab="cluster"></label>
-          <label>Font size<br><input type="number" name="font_size" value="12" data-tab="cluster"></label>
-          <label><input type="checkbox" name="no_grid" data-tab="cluster"> Hide grid</label>
-          <label><input type="checkbox" name="no_plot" data-tab="cluster"> Skip plot</label>
-        </div>
-      </details>
-    </div>
-  </div>
-
-  <div class="run-row">
-    <button id="btn-run-batch">Run analysis</button>
-    <label style="display:inline-flex; align-items:center; gap:0.4rem; margin:0;">
+    <label class="ai-toggle" title="Wraps PBC-split molecules back together and centres the anchor at the box centre, cpptraj-style. Turn off if the trajectory is already imaged.">
       <input type="checkbox" id="opt-autoimage" checked>
-      <span title="Wraps PBC-split molecules back together and centres the anchor at the box centre, cpptraj-style. Turn off if the trajectory is already imaged (or if autoimage is corrupting your structure).">Autoimage</span>
+      <span>Autoimage</span>
     </label>
-    <span id="run-status" class="status-line"></span>
+    <span class="spacer"></span>
+    <span id="run-status" class="run-status"></span>
   </div>
+</section>
 
-  <div id="results-area" style="margin-top: 1rem;"></div>
-</article>
+<!-- ===========================================================
+     3. Results
+     =========================================================== -->
+<section class="glass-card" id="results-card">
+  <div class="section-head">
+    <span class="section-num">3</span>
+    <h2 class="section-title">Results</h2>
+    <span class="spacer"></span>
+    <button id="btn-refresh-results" class="ghost small">↻ Refresh</button>
+  </div>
+  <div id="results-area"></div>
+</section>
 
-<footer class="muted" style="text-align: center; margin-top: 2rem; font-size: 0.85rem;">
+</main>
+
+<footer class="pagefoot">
   Post_MD — pre-alpha. Same engine as the <code>post-md</code> CLI.
 </footer>
 
-</main>
+<!-- lightbox -->
+<div class="lightbox" id="lightbox" aria-hidden="true">
+  <button class="lb-close" id="lb-close" aria-label="Close">×</button>
+  <img id="lb-img" alt="">
+</div>
+
+<!-- status strip -->
+<div class="status-strip" id="status-strip" data-level="info">Ready.</div>
 
 <script>
 const $ = (sel, root = document) => root.querySelector(sel);
@@ -445,12 +993,18 @@ const $$ = (sel, root = document) => Array.from(root.querySelectorAll(sel));
 
 let state = { systems: [], outputs: [] };
 
+// ---- global status strip ----
+function setGlobalStatus(msg, level) {
+  const el = $('#status-strip');
+  el.textContent = msg || '';
+  el.dataset.level = level || 'info';
+}
+
 // ---- status fetch + render ----
 async function refreshStatus() {
   const res = await fetch('/api/status');
   state = await res.json();
   renderStatus();
-  renderFiles();
 }
 
 function renderStatus() {
@@ -470,7 +1024,7 @@ function renderStatus() {
     if (ok) {
       span.textContent = `${s.label}: ${s.topology} + ${s.trajectory}`;
     } else if (s.topology_stale || s.trajectory_stale) {
-      span.textContent = `${s.label}: STALE (${s.topology_stale || s.trajectory_stale})`;
+      span.textContent = `${s.label}: STALE`;
       span.title = (s.topology_stale || '') + ' / ' + (s.trajectory_stale || '');
     } else {
       span.textContent = `${s.label}: incomplete`;
@@ -478,10 +1032,6 @@ function renderStatus() {
     pills.appendChild(span);
   }
 }
-
-// Workspace file panel removed — render functions stay as no-ops so the
-// rest of the JS can keep calling them without conditional checks.
-function renderFiles() {}
 
 // ---- systems list UI ----
 function renderSystems() {
@@ -491,42 +1041,41 @@ function renderSystems() {
     addSystemRow({ label: 'System 1', topology_path: '', trajectory_path: '' });
     return;
   }
-  for (const s of state.systems) {
-    addSystemRow(s);
-  }
+  for (const s of state.systems) addSystemRow(s);
 }
 
 function addSystemRow(initial) {
   const list = $('#systems-list');
   const row = document.createElement('div');
-  row.className = 'system-row';
+  row.className = 'system-row glass-card nested';
   row.innerHTML = `
     <header>
-      <span style="display:flex; gap:0.4rem; align-items:center;">
+      <div class="row">
         <input type="text" class="label-input" placeholder="Label (e.g. WT, Mut1)" value="${(initial && initial.label) || ''}">
-        <label style="margin:0; display:inline-flex; gap:0.3rem; align-items:center;" title="Plot color for this system in overlay graphs">
+        <label class="row" style="margin:0" title="Plot color for this system in overlay graphs">
           <input type="color" class="color-input" value="${(initial && initial.color) || '#1f77b4'}">
         </label>
-      </span>
-      <span style="display:flex; gap:0.4rem;">
-        <button type="button" class="secondary outline btn-remove-system">Remove</button>
-      </span>
+      </div>
+      <button type="button" class="ghost small btn-remove-system">Remove</button>
     </header>
-    <label>Topology <small class="muted">.prmtop / .parm7 / .pdb / .gro</small>
-      <div class="path-row">
-        <input type="text" class="topology-input" placeholder="/path/to/system.prmtop" value="${(initial && initial.topology_path) || ''}">
-        <button type="button" class="secondary btn-browse-topology">Browse…</button>
+
+    <label>Topology <small>.prmtop / .parm7 / .pdb / .gro</small>
+      <div class="path-row" style="margin-top: 0.25rem;">
+        <input type="text" class="topology-input mono" placeholder="/path/to/system.prmtop" value="${(initial && initial.topology_path) || ''}">
+        <button type="button" class="btn-browse-topology">Browse…</button>
       </div>
       <div class="file-browser browser-topology" style="display:none"></div>
     </label>
-    <label style="margin-top: 0.4rem;">Trajectory <small class="muted">.nc / .xtc / .trr / .mdcrd</small>
-      <div class="path-row">
-        <input type="text" class="trajectory-input" placeholder="/path/to/prod.nc" value="${(initial && initial.trajectory_path) || ''}">
-        <button type="button" class="secondary btn-browse-trajectory">Browse…</button>
+
+    <label style="margin-top: 0.2rem;">Trajectory <small>.nc / .xtc / .trr / .mdcrd</small>
+      <div class="path-row" style="margin-top: 0.25rem;">
+        <input type="text" class="trajectory-input mono" placeholder="/path/to/prod.nc" value="${(initial && initial.trajectory_path) || ''}">
+        <button type="button" class="btn-browse-trajectory">Browse…</button>
       </div>
       <div class="file-browser browser-trajectory" style="display:none"></div>
     </label>
-    <div class="prepare-status status-line" style="margin-top: 0.3rem;"></div>
+
+    <div class="prepare-status"></div>
   `;
   if (initial && (initial.topology_stale || initial.trajectory_stale)) {
     const w = document.createElement('div');
@@ -548,13 +1097,10 @@ function addSystemRow(initial) {
 function showPrepareStatus(row, msg, isError) {
   const el = row.querySelector('.prepare-status');
   if (!el) return;
-  el.textContent = msg;
-  el.className = 'prepare-status status-line' + (isError ? ' error' : '');
+  el.textContent = msg || '';
+  el.className = 'prepare-status' + (isError ? ' error' : '');
 }
 
-// Polls /api/preprocess-progress every `intervalMs` while the supplied
-// `shouldKeepPolling` returns true. Each tick calls `onTick(snapshot)`
-// where snapshot is the {done, total, finished} for the named op.
 async function pollPreprocessProgress(systemIdx, op, shouldKeepPolling, onTick, intervalMs = 1500) {
   while (shouldKeepPolling()) {
     try {
@@ -563,7 +1109,7 @@ async function pollPreprocessProgress(systemIdx, op, shouldKeepPolling, onTick, 
         const snap = await r.json();
         onTick(snap[op] || null);
       }
-    } catch (_) { /* ignore transient errors, just keep polling */ }
+    } catch (_) { /* ignore */ }
     await new Promise(res => setTimeout(res, intervalMs));
   }
 }
@@ -592,6 +1138,7 @@ $('#btn-add-system').addEventListener('click', () =>
 $('#btn-save-systems').addEventListener('click', async () => {
   const systems = collectSystemsFromUI();
   setSystemsStatus(`Saving ${systems.length} system(s)…`, false);
+  setGlobalStatus(`Saving ${systems.length} system(s)…`, 'running');
   try {
     const res = await fetch('/api/systems', {
       method: 'POST',
@@ -601,21 +1148,23 @@ $('#btn-save-systems').addEventListener('click', async () => {
     const data = await res.json().catch(() => ({}));
     if (!res.ok) {
       setSystemsStatus(`Failed: ${data.detail || res.statusText}`, true);
+      setGlobalStatus(`Save failed: ${data.detail || res.statusText}`, 'error');
       return;
     }
     state = data.state;
     renderStatus();
-    renderFiles();
     setSystemsStatus(`Saved ${state.systems.length} system(s).`, false);
+    setGlobalStatus(`Saved ${state.systems.length} system(s).`, 'ok');
   } catch (e) {
     setSystemsStatus(`Error: ${e.message}`, true);
+    setGlobalStatus(`Error: ${e.message}`, 'error');
   }
 });
 
 function setSystemsStatus(msg, isError) {
   const el = $('#systems-status');
   el.textContent = msg;
-  el.className = 'status-line' + (isError ? ' error' : '');
+  el.className = 'run-status' + (isError ? ' error' : '');
 }
 
 $('#btn-reset').addEventListener('click', async () => {
@@ -624,10 +1173,10 @@ $('#btn-reset').addEventListener('click', async () => {
   $('#results-area').innerHTML = '';
   state = { systems: [], outputs: [] };
   renderStatus();
-  renderFiles();
   $('#systems-list').innerHTML = '';
   addSystemRow({ label: 'System 1' });
   setSystemsStatus('', false);
+  setGlobalStatus('Workspace reset.', 'ok');
 });
 
 // ---- file browser (server-side) ----
@@ -661,7 +1210,7 @@ function renderBrowser(panel, role, data, rowEl) {
   pathSpan.title = data.path;
   const closeBtn = document.createElement('button');
   closeBtn.type = 'button';
-  closeBtn.className = 'secondary outline';
+  closeBtn.className = 'ghost small';
   closeBtn.textContent = 'Close';
   closeBtn.addEventListener('click', () => { panel.style.display = 'none'; });
   hdr.append(pathSpan, closeBtn);
@@ -747,7 +1296,6 @@ $$('.analysis-block').forEach(block => {
     if (cb.checked) block.classList.add('expanded');
     else block.classList.remove('expanded');
   });
-  // Clicking header toggles checkbox (except if user clicked the box itself).
   block.querySelector('header').addEventListener('click', (e) => {
     if (e.target === cb || e.target.closest('input, label')) return;
     cb.checked = !cb.checked;
@@ -780,19 +1328,21 @@ $('#btn-run-batch').addEventListener('click', async () => {
     .map(cb => cb.dataset.toggle);
   if (!selected.length) {
     setRunStatus('Tick at least one analysis first.', true);
+    setGlobalStatus('Tick at least one analysis first.', 'error');
     return;
   }
   if (!state.systems.length) {
     setRunStatus('Register at least one system first (Save systems above).', true);
+    setGlobalStatus('Save at least one system first.', 'error');
     return;
   }
   const incomplete = state.systems.find(s => !s.topology || !s.trajectory);
   if (incomplete) {
-    setRunStatus(`System "${incomplete.label}" is missing files — fix or remove it.`, true);
+    setRunStatus(`System "${incomplete.label}" is missing files.`, true);
+    setGlobalStatus(`System "${incomplete.label}" is missing files.`, 'error');
     return;
   }
 
-  // Info is handled specially (per-system summary, no batch RUNNERS entry).
   const handleInfo = selected.includes('info');
   const batchAnalyses = {};
   for (const name of selected) {
@@ -801,13 +1351,9 @@ $('#btn-run-batch').addEventListener('click', async () => {
   }
 
   setRunStatus('Running…', false);
+  setGlobalStatus(`Running ${selected.length} analysis (${selected.join(', ')})…`, 'running');
   $('#results-area').innerHTML = '';
 
-  // While /api/run-batch is in flight, poll progress per system so the
-  // user sees a generic "Preparing trajectory: X%" line under each row.
-  // The bookkeeping happens inside /api/run-batch (autoimage + strip in
-  // one combined pass, hidden under the op="prepare" label); from the
-  // user's perspective it's just "preparing".
   const rows = $$('#systems-list .system-row');
   let runInFlight = true;
   const pollers = [];
@@ -822,7 +1368,9 @@ $('#btn-run-batch').addEventListener('click', async () => {
         if (snap.finished) {
           showPrepareStatus(row, '');
         } else {
-          showPrepareStatus(row, formatProgress(snap, `Preparing ${state.systems[sysIdx].label}`));
+          const text = formatProgress(snap, `Preparing ${state.systems[sysIdx].label}`);
+          showPrepareStatus(row, text);
+          setGlobalStatus(text, 'running');
         }
       },
     ));
@@ -853,21 +1401,23 @@ $('#btn-run-batch').addEventListener('click', async () => {
       const data = await r.json();
       if (!r.ok) {
         setRunStatus(`Error: ${data.detail || r.statusText}`, true);
+        setGlobalStatus(`Error: ${data.detail || r.statusText}`, 'error');
         return;
       }
       renderBatchResults(data.result);
       if (data.state) {
         state = data.state;
         renderStatus();
-        renderFiles();
       }
     } else {
       await refreshStatus();
     }
 
     setRunStatus('Done.', false);
+    setGlobalStatus('Done.', 'ok');
   } catch (e) {
     setRunStatus(`Error: ${e.message || e}`, true);
+    setGlobalStatus(`Error: ${e.message || e}`, 'error');
   } finally {
     runInFlight = false;
     await Promise.all(pollers);
@@ -878,7 +1428,7 @@ $('#btn-run-batch').addEventListener('click', async () => {
 function setRunStatus(msg, isError) {
   const el = $('#run-status');
   el.textContent = msg;
-  el.className = 'status-line' + (isError ? ' error' : '');
+  el.className = 'run-status' + (isError ? ' error' : '');
 }
 
 function renderInfo(infos) {
@@ -908,10 +1458,8 @@ function renderBatchResults(result) {
     title.textContent = name.toUpperCase();
     block.appendChild(title);
 
-    // Data file links per system
     if (entry.systems) {
       const linksWrap = document.createElement('p');
-      linksWrap.className = 'status-line';
       const links = [];
       for (const s of entry.systems) {
         if (s.data) {
@@ -927,7 +1475,6 @@ function renderBatchResults(result) {
       block.appendChild(linksWrap);
     }
 
-    // Combined plot (overlay analyses)
     if (entry.plot) {
       const links = document.createElement('p');
       links.innerHTML =
@@ -936,10 +1483,10 @@ function renderBatchResults(result) {
       const img = document.createElement('img');
       img.src = `/api/result/${encodeURIComponent(entry.plot)}?cb=${Date.now()}`;
       img.alt = `${name} plot`;
+      img.addEventListener('click', () => openLightbox(img.src));
       block.appendChild(img);
     }
 
-    // Per-system plots (PCA / Cluster)
     if (entry.systems && !entry.plot) {
       for (const s of entry.systems) {
         if (s.plot) {
@@ -949,6 +1496,7 @@ function renderBatchResults(result) {
           const img = document.createElement('img');
           img.src = `/api/result/${encodeURIComponent(s.plot)}?cb=${Date.now()}`;
           img.alt = `${name} ${s.label}`;
+          img.addEventListener('click', () => openLightbox(img.src));
           block.appendChild(img);
         }
       }
@@ -957,10 +1505,36 @@ function renderBatchResults(result) {
   }
 }
 
+// ---- lightbox ----
+function openLightbox(src) {
+  const lb = $('#lightbox'); const img = $('#lb-img');
+  img.src = src;
+  lb.classList.add('open');
+  lb.setAttribute('aria-hidden', 'false');
+}
+function closeLightbox() {
+  const lb = $('#lightbox');
+  lb.classList.remove('open');
+  lb.setAttribute('aria-hidden', 'true');
+  $('#lb-img').src = '';
+}
+$('#lb-close').addEventListener('click', closeLightbox);
+$('#lightbox').addEventListener('click', e => { if (e.target.id === 'lightbox') closeLightbox(); });
+document.addEventListener('keydown', e => { if (e.key === 'Escape') closeLightbox(); });
+
+// ---- refresh results button ----
+$('#btn-refresh-results').addEventListener('click', async () => {
+  setGlobalStatus('Refreshing status…', 'running');
+  await refreshStatus();
+  setGlobalStatus('Status refreshed.', 'ok');
+});
+
 // ---- bootstrap ----
 (async function init() {
+  setGlobalStatus('Loading…', 'running');
   await refreshStatus();
   renderSystems();
+  setGlobalStatus('Ready.', 'ok');
 })();
 </script>
 </body>
