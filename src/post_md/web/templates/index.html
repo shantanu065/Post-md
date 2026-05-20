@@ -1044,16 +1044,32 @@ function renderSystems() {
   for (const s of state.systems) addSystemRow(s);
 }
 
+// matplotlib tab10 — pick a new default color per system so overlay plots
+// don't draw both lines in identical blue.
+const TAB10_COLORS = [
+  '#1f77b4', '#ff7f0e', '#2ca02c', '#d62728',
+  '#9467bd', '#8c564b', '#e377c2', '#7f7f7f',
+  '#bcbd22', '#17becf',
+];
+function nextDefaultColor() {
+  const used = $$('#systems-list .system-row .color-input').map(i => (i.value || '').toLowerCase());
+  for (const c of TAB10_COLORS) {
+    if (!used.includes(c.toLowerCase())) return c;
+  }
+  return TAB10_COLORS[used.length % TAB10_COLORS.length];
+}
+
 function addSystemRow(initial) {
   const list = $('#systems-list');
   const row = document.createElement('div');
   row.className = 'system-row glass-card nested';
+  const defaultColor = (initial && initial.color) || nextDefaultColor();
   row.innerHTML = `
     <header>
       <div class="row">
         <input type="text" class="label-input" placeholder="Label (e.g. WT, Mut1)" value="${(initial && initial.label) || ''}">
         <label class="row" style="margin:0" title="Plot color for this system in overlay graphs">
-          <input type="color" class="color-input" value="${(initial && initial.color) || '#1f77b4'}">
+          <input type="color" class="color-input" value="${defaultColor}">
         </label>
       </div>
       <button type="button" class="ghost small btn-remove-system">Remove</button>

@@ -96,17 +96,18 @@ def plot_line(
     ax.set_ylabel(style.ylabel or default_ylabel)
     ax.set_title(style.title or default_title)
     _apply_axis_limits(ax, style)
-    # Default for non-negative quantities (RMSD, RMSF, Rg are all ≥ 0):
-    # extend each axis down to 0 if the user hasn't pinned the lower
-    # bound. Without this the axis would start at the data minimum, so
-    # "0" never appears on the tick scale.
+    # Y-axis: extend down to 0 for non-negative quantities (RMSD/RMSF/Rg)
+    # so the "0" tick is always visible as a reference.
+    # X-axis: do NOT force to 0 — trajectories that start at e.g. 100 ns
+    # (continuation runs) should display their actual time range, not a
+    # blank 0–100 ns stretch.
     x_arr = np.asarray(x)
     y_arr = np.asarray(y)
-    if style.xmin is None and x_arr.size and float(x_arr.min()) >= 0:
-        ax.set_xlim(left=0)
     if style.ymin is None and y_arr.size and float(y_arr.min()) >= 0:
         ax.set_ylim(bottom=0)
     _apply_publication_ticks(ax)
+    if x_arr.size:
+        _force_boundary_ticks_x(ax, float(x_arr.min()), float(x_arr.max()))
     if style.grid:
         ax.grid(alpha=0.3)
     if style.show_legend or style.legend_label:
@@ -141,6 +142,15 @@ def plot_lines_multi(
     cmap_name = cmap or style.cmap or "tab10"
     palette = plt.get_cmap(cmap_name)
 
+    # If every curve was passed the SAME color (a common consequence of
+    # leaving the frontend's per-system colour picker at its default), the
+    # plot would look like a single line. Fall back to the colormap so
+    # each curve still gets a distinct hue.
+    if colors and len(curves) > 1:
+        non_null = [c for c in colors if c]
+        if len(set(non_null)) <= 1:
+            colors = None
+
     fig, ax = plt.subplots(figsize=style.figsize)
     x_min = float("inf")
     x_max = float("-inf")
@@ -171,16 +181,39 @@ def plot_lines_multi(
     ax.set_ylabel(style.ylabel or default_ylabel)
     ax.set_title(style.title or default_title)
     _apply_axis_limits(ax, style)
-    # Same 0-start default as plot_line — RMSD/RMSF/Rg are non-negative.
-    if style.xmin is None and x_min != float("inf") and x_min >= 0:
-        ax.set_xlim(left=0)
+    # Same Y-only-to-zero default as plot_line — see note there.
     if style.ymin is None and y_min != float("inf") and y_min >= 0:
         ax.set_ylim(bottom=0)
     _apply_publication_ticks(ax)
+    if x_min != float("inf"):
+        _force_boundary_ticks_x(ax, x_min, x_max)
     if style.grid:
         ax.grid(alpha=0.3)
     ax.legend(loc="best", frameon=True)
     _save(fig, output_path, style.dpi)
+
+
+def _force_boundary_ticks_x(ax, x_min: float, x_max: float) -> None:
+    """Guarantee the x-axis labels the data start AND end.
+
+    matplotlib's `MaxNLocator` picks "nice" round numbers (e.g. 120, 140,
+    160, 180 for data spanning 100–200) and skips the actual data
+    boundaries. For trajectory plots the user needs to see when the run
+    actually started and ended, so we splice the data extremes into the
+    auto-picked tick set, dropping any auto ticks that fall within 5 %
+    of the boundaries (avoids visual crowding).
+    """
+    if not (np.isfinite(x_min) and np.isfinite(x_max)):
+        return
+    span = x_max - x_min
+    if span < 1e-12:
+        return
+    lo, hi = ax.get_xlim()
+    auto = [t for t in ax.get_xticks() if lo - 1e-9 <= t <= hi + 1e-9]
+    tol = span * 0.05
+    auto = [t for t in auto if abs(t - x_min) > tol and abs(t - x_max) > tol]
+    ticks = sorted({float(x_min), float(x_max), *auto})
+    ax.set_xticks(ticks)
 
 
 def _apply_publication_ticks(ax) -> None:
