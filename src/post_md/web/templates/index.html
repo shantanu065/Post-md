@@ -632,11 +632,9 @@ footer.pagefoot code { font-family: var(--mono); color: var(--muted); }
   <div class="section-head">
     <span class="section-num">2</span>
     <h2 class="section-title">Analyses</h2>
-    <span class="spacer"></span>
-    <button id="btn-run-batch" class="primary">▶ Run checked</button>
   </div>
   <p class="section-desc">
-    Tick every analysis you want, fill its parameters, then hit <strong>Run checked</strong>. All ticked analyses run across every saved system in a single batch.
+    Tick every analysis you want, fill its parameters, then hit <strong>Run analysis</strong>. All ticked analyses run across every saved system in a single batch.
   </p>
 
   <div class="analyses-list">
@@ -950,6 +948,7 @@ footer.pagefoot code { font-family: var(--mono); color: var(--muted); }
   </div><!-- /.analyses-list -->
 
   <div class="run-row">
+    <button id="btn-run-batch" class="primary">▶ Run analysis</button>
     <label class="ai-toggle" title="Wraps PBC-split molecules back together and centres the anchor at the box centre, cpptraj-style. Turn off if the trajectory is already imaged.">
       <input type="checkbox" id="opt-autoimage" checked>
       <span>Autoimage</span>
@@ -1372,25 +1371,65 @@ $('#btn-run-batch').addEventListener('click', async () => {
 
   const rows = $$('#systems-list .system-row');
   let runInFlight = true;
-  const pollers = [];
-  for (let i = 0; i < state.systems.length && i < rows.length; i++) {
-    const row = rows[i];
-    const sysIdx = i;
-    pollers.push(pollPreprocessProgress(sysIdx, 'prepare',
-      () => runInFlight,
-      snap => {
-        if (!runInFlight) return;
-        if (!snap) { showPrepareStatus(row, ''); return; }
-        if (snap.finished) {
-          showPrepareStatus(row, '');
-        } else {
-          const text = formatProgress(snap, `Preparing ${state.systems[sysIdx].label}`);
-          showPrepareStatus(row, text);
-          setGlobalStatus(text, 'running');
+  // Single shared poller for all systems. Each tick polls every system's
+  // prep progress in parallel, then reports the *currently active* one
+  // in the global status bar (or "Running analyses…" once every system
+  // has finished prep and the run-batch call is still chugging on
+  // RMSD/RMSF/etc). Per-row status shows that row's own progress.
+  const combinedPoller = (async () => {
+    while (runInFlight) {
+      try {
+        const snaps = await Promise.all(
+          state.systems.map((_, i) =>
+            fetch(`/api/preprocess-progress?system=${i}`)
+              .then(r => (r.ok ? r.json() : null))
+              .catch(() => null),
+          ),
+        );
+        let activeIdx = -1;
+        let anyStarted = false;
+        let allDone = state.systems.length > 0;
+        for (let i = 0; i < state.systems.length && i < rows.length; i++) {
+          const row = rows[i];
+          const snap = (snaps[i] && snaps[i].prepare) || null;
+          if (!snap) {
+            showPrepareStatus(row, '');
+            allDone = false;       // not even started yet → prep not done
+            continue;
+          }
+          anyStarted = true;
+          if (snap.finished) {
+            showPrepareStatus(row, '');
+          } else {
+            allDone = false;
+            const text = formatProgress(snap, `Preparing ${state.systems[i].label}`);
+            showPrepareStatus(row, text);
+            // First not-finished system "owns" the global status —
+            // the server prepares systems sequentially, so this is the
+            // only one actually doing work right now.
+            if (activeIdx < 0) activeIdx = i;
+          }
         }
-      },
-    ));
-  }
+        if (!runInFlight) break;
+        if (activeIdx >= 0) {
+          const snap = snaps[activeIdx].prepare;
+          setGlobalStatus(
+            formatProgress(snap, `Preparing ${state.systems[activeIdx].label}`),
+            'running',
+          );
+        } else if (anyStarted && allDone) {
+          // Every selected system has its prepared file ready; the
+          // long-running call is now the analyses themselves.
+          setGlobalStatus(
+            `Running analyses (${selected.join(', ')})…`, 'running',
+          );
+        }
+      } catch (_) {
+        // transient — keep polling
+      }
+      await new Promise(r => setTimeout(r, 1000));
+    }
+  })();
 
   try {
     if (handleInfo) {
@@ -1436,7 +1475,7 @@ $('#btn-run-batch').addEventListener('click', async () => {
     setGlobalStatus(`Error: ${e.message || e}`, 'error');
   } finally {
     runInFlight = false;
-    await Promise.all(pollers);
+    await combinedPoller;
     for (const row of rows) showPrepareStatus(row, '');
   }
 });
