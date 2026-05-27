@@ -106,21 +106,91 @@ def shrake_rupley(
     return sasa
 
 
+def _sasa_chunk_worker(args):
+    """Module-level worker for multiprocessing — must be picklable.
+
+    Returns total SASA per frame for the slice of frames it received.
+    Lives at module level so ``multiprocessing.Pool`` can import-and-call
+    it on spawned children without pickling closures.
+    """
+    coords_chunk, radii, probe_radius, n_sphere_points = args
+    out = np.empty(coords_chunk.shape[0], dtype=np.float64)
+    for f in range(coords_chunk.shape[0]):
+        out[f] = shrake_rupley(
+            coords_chunk[f], radii,
+            probe_radius=probe_radius, n_sphere_points=n_sphere_points,
+        ).sum()
+    return out
+
+
 def sasa_trajectory(
     coords: np.ndarray,
     radii: np.ndarray,
     *,
     probe_radius: float = 1.4,
     n_sphere_points: int = 96,
+    n_workers: int | None = None,
 ) -> np.ndarray:
-    """Total SASA per frame (Å²). coords: (n_frames, n_atoms, 3)."""
+    """Total SASA per frame (Å²). coords: (n_frames, n_atoms, 3).
+
+    SASA is the textbook embarrassingly-parallel analysis — frames are
+    independent, so the trajectory is sliced into ``n_workers`` chunks
+    and each is processed in its own Python process. When ``n_workers``
+    is None the count comes from :func:`post_md.utils.default_workers`
+    (80% of the host's CPU cores by default).
+    """
+    import multiprocessing
+    from post_md.utils import (
+        default_workers, raise_if_cancelled, register_pool, unregister_pool,
+    )
+
     coords = np.asarray(coords, dtype=np.float64)
     if coords.ndim != 3 or coords.shape[2] != 3:
         raise ValueError("coords must be (n_frames, n_atoms, 3)")
-    out = np.empty(coords.shape[0], dtype=np.float64)
-    for f in range(coords.shape[0]):
-        out[f] = shrake_rupley(
-            coords[f], radii,
-            probe_radius=probe_radius, n_sphere_points=n_sphere_points,
-        ).sum()
-    return out
+    n_frames = int(coords.shape[0])
+    if n_workers is None:
+        n_workers = default_workers()
+    # Serial path for trivial inputs — Pool startup cost (~100 ms) would
+    # dwarf the actual work otherwise.
+    if n_workers <= 1 or n_frames < n_workers * 2:
+        out = np.empty(n_frames, dtype=np.float64)
+        for f in range(n_frames):
+            if f % 256 == 0:
+                raise_if_cancelled()
+            out[f] = shrake_rupley(
+                coords[f], radii,
+                probe_radius=probe_radius, n_sphere_points=n_sphere_points,
+            ).sum()
+        return out
+
+    chunk_size = (n_frames + n_workers - 1) // n_workers
+    args = [
+        (coords[i : i + chunk_size], radii, probe_radius, n_sphere_points)
+        for i in range(0, n_frames, chunk_size)
+    ]
+    raise_if_cancelled()
+    # map_async + polling so a cancel request from another thread can
+    # interrupt cleanly. Plain pool.map() is hard-blocking and can hang
+    # if the pool is terminated mid-call.
+    import time as _time
+    pool = multiprocessing.Pool(processes=n_workers)
+    register_pool(pool)
+    try:
+        async_res = pool.map_async(_sasa_chunk_worker, args)
+        while not async_res.ready():
+            from post_md.utils import is_cancelled as _ic
+            if _ic():
+                pool.terminate()
+                pool.join()
+                from post_md.utils import Cancelled as _C
+                raise _C("Cancelled by user")
+            _time.sleep(0.05)
+        chunk_results = async_res.get()
+    finally:
+        unregister_pool(pool)
+        try:
+            pool.close()
+            pool.join()
+        except Exception:
+            pass
+    return np.concatenate(chunk_results)

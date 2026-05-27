@@ -584,6 +584,11 @@ def web(
     port: int = typer.Option(8000, "--port"),
     workdir: str = typer.Option("./post_md_web", "--workdir", help="Where uploads + outputs live."),
     reload: bool = typer.Option(False, "--reload", help="Auto-reload on code changes (dev)."),
+    clean: bool = typer.Option(
+        False, "--clean",
+        help="Wipe every file in workdir (state, prepared trajectories, results, "
+             "config) before starting. Fresh-boot mode.",
+    ),
 ) -> None:
     """Launch the local web UI (browser-based form for all analyses)."""
     try:
@@ -593,11 +598,39 @@ def web(
             "Web extras not installed. Run: pip install -e \".[web]\""
         ) from exc
 
+    # Optional hard reset: clear the workdir before any FastAPI machinery
+    # touches it. Done here (not inside create_app) so the user sees the
+    # "wiped" log line up-front and there's no chance of a config file
+    # being re-loaded between deletion and startup.
+    if clean:
+        wd_path = Path(workdir).resolve()
+        if wd_path.exists():
+            removed = 0
+            for entry in wd_path.iterdir():
+                if entry.is_file():
+                    try:
+                        entry.unlink()
+                        removed += 1
+                    except OSError:
+                        pass
+            typer.echo(f"--clean: wiped {removed} file(s) from {wd_path}")
+        # Clear any inherited env-var so the fresh boot uses pure defaults.
+        import os
+        os.environ.pop("POST_MD_WORKERS", None)
+
     from post_md.web.app import create_app
 
     fastapi_app = create_app(workdir=workdir)
     typer.echo(f"Post_MD web UI starting at http://{host}:{port}")
     typer.echo(f"Workdir: {Path(workdir).resolve()}")
+    import os
+    from post_md.utils import default_workers
+    total_cores = os.cpu_count() or 1
+    workers = default_workers()
+    typer.echo(
+        f"Parallel workers: {workers} of {total_cores} logical cores "
+        f"(set POST_MD_WORKERS=N to override)"
+    )
     typer.echo("Press CTRL+C to stop.")
     import uvicorn  # noqa: E402
 

@@ -169,8 +169,11 @@ def prepare_trajectory(
         v_a = nc.createVariable("cell_angles", "f", ("frame", "cell_angular"))
         v_a.units = b"degree"
 
+        from post_md.utils import raise_if_cancelled
+
         write_cursor = 0
         for start in range(0, n_frames, chunk_frames):
+            raise_if_cancelled()
             stop = min(start + chunk_frames, n_frames)
             n_chunk = stop - start
 

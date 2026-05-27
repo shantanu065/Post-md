@@ -160,6 +160,11 @@ def _system_view(s: dict[str, str], index: int) -> dict[str, Any]:
         "trajectory": None,
         "topology_stale": None,
         "trajectory_stale": None,
+        # The user's *source* paths (what they registered). The UI shows
+        # these in the input boxes so re-saving doesn't accidentally
+        # stomp them with the post-prep cached file paths.
+        "original_topology": s.get("original_topology") or "",
+        "original_trajectory": s.get("original_trajectory") or "",
     }
     for role in ("topology", "trajectory"):
         raw = s.get(role) or ""
@@ -234,6 +239,12 @@ def create_app(workdir: str | Path) -> FastAPI:
     workdir = Path(workdir).resolve()
     workdir.mkdir(parents=True, exist_ok=True)
 
+    # Persistent settings live in the workdir (cross-platform — no shell
+    # env-var gymnastics needed on Windows/Mac). Apply on startup so the
+    # parallel analyses pick up the saved worker count immediately.
+    from post_md import config as _pmd_config
+    _pmd_config.apply_to_env(_pmd_config.load_config(workdir))
+
     app = FastAPI(title="Post_MD", docs_url="/api/docs", openapi_url="/api/openapi.json")
     templates = Jinja2Templates(directory=str(_TEMPLATES_DIR))
 
@@ -288,6 +299,53 @@ def create_app(workdir: str | Path) -> FastAPI:
     @app.get("/api/status")
     async def status() -> dict[str, Any]:
         return _state(workdir)
+
+    @app.get("/api/settings")
+    async def get_settings() -> dict[str, Any]:
+        """Persistent settings + effective resolved values.
+
+        ``effective_workers`` is the value parallel analyses will actually
+        use right now (env var / saved setting / 80%-of-cores default).
+        ``total_cores`` is the host's logical CPU count, surfaced so the
+        UI can show "X of Y cores" without an extra round-trip.
+        """
+        import os
+        from post_md.utils import default_workers
+
+        cfg = _pmd_config.load_config(workdir)
+        return {
+            "workers": cfg.get("workers"),
+            "effective_workers": default_workers(),
+            "total_cores": os.cpu_count() or 1,
+        }
+
+    @app.post("/api/settings")
+    async def set_settings(payload: dict[str, Any]) -> dict[str, Any]:
+        """Save settings to the workdir config and apply immediately
+        (no server restart needed)."""
+        import os
+        from post_md.utils import default_workers
+
+        cfg = _pmd_config.load_config(workdir)
+        if "workers" in payload:
+            raw = payload["workers"]
+            if raw in (None, "", "auto"):
+                cfg["workers"] = None
+            else:
+                try:
+                    n = int(raw)
+                except (TypeError, ValueError):
+                    raise HTTPException(400, "'workers' must be an integer or null")
+                if n < 1:
+                    raise HTTPException(400, "'workers' must be >= 1")
+                cfg["workers"] = n
+        _pmd_config.save_config(workdir, cfg)
+        _pmd_config.apply_to_env(cfg)
+        return {
+            "workers": cfg.get("workers"),
+            "effective_workers": default_workers(),
+            "total_cores": os.cpu_count() or 1,
+        }
 
     def _validate_upload_params(role: str | None, filename_raw: str | None) -> tuple[str, str]:
         if role not in ("topology", "trajectory") or not filename_raw:
@@ -554,6 +612,14 @@ def create_app(workdir: str | Path) -> FastAPI:
         raw_systems = payload.get("systems")
         if not isinstance(raw_systems, list):
             raise HTTPException(400, "'systems' must be a list")
+        # Pre-existing state lets us preserve `original_*` across re-saves
+        # so the snapshot from the user's *very first* registration
+        # survives. Without this, a Save click after a prep cycle would
+        # overwrite originals with the prepared filenames currently in
+        # the input boxes — that's how the workdir ended up with chained
+        # `-prepared_0-noai-prepared_0-noai.nc` filenames.
+        existing = _read_systems(workdir)
+
         validated: list[dict[str, str]] = []
         for i, s in enumerate(raw_systems):
             if not isinstance(s, dict):
@@ -565,15 +631,34 @@ def create_app(workdir: str | Path) -> FastAPI:
                 continue
             top_path = _validated_file_path(top_raw, "topology")
             traj_path = _validated_file_path(traj_raw, "trajectory")
-            # Snapshot the originals on first save so future re-preps
-            # (e.g. when the user toggles Autoimage) start from the
-            # user-supplied files, not from a previously-cached output.
+
+            # Originals: prefer the value already on disk (immutable
+            # snapshot from first save). If the existing original_* is
+            # missing OR points at a workdir-prepared cache file, fall
+            # back to what the user just typed — that's the new truth.
+            prior = existing[i] if i < len(existing) else {}
+            prior_orig_top = str(prior.get("original_topology") or "").strip()
+            prior_orig_traj = str(prior.get("original_trajectory") or "").strip()
+            workdir_str = str(workdir)
+            def _is_useful_original(p: str) -> bool:
+                # An "original" must (a) exist and (b) not live inside the
+                # workdir's prepared-cache area, otherwise it's just a
+                # stale chained pointer from the earlier bug.
+                if not p or not Path(p).is_file():
+                    return False
+                if p.startswith(workdir_str) and "-prepared_" in Path(p).name:
+                    return False
+                return True
+
+            original_top = prior_orig_top if _is_useful_original(prior_orig_top) else str(top_path)
+            original_traj = prior_orig_traj if _is_useful_original(prior_orig_traj) else str(traj_path)
+
             entry: dict[str, Any] = {
                 "label": label,
                 "topology": str(top_path),
                 "trajectory": str(traj_path),
-                "original_topology": str(top_path),
-                "original_trajectory": str(traj_path),
+                "original_topology": original_top,
+                "original_trajectory": original_traj,
             }
             color = str(s.get("color", "") or "").strip()
             if color:
@@ -621,8 +706,22 @@ def create_app(workdir: str | Path) -> FastAPI:
         sys_ = systems[idx]
         if not sys_["topology_path"] or not sys_["trajectory_path"]:
             raise HTTPException(400, f"System {sys_['label']!r} is missing topology/trajectory.")
+
+        # Prefer the *original* registered files for Info so bond counts
+        # and full atom/residue counts reflect the system the user
+        # actually registered — not the slim prepared copy whose
+        # minimal-prmtop omits BONDS_* sections by design.
+        all_systems_full = _read_systems(workdir)
+        sys_state = all_systems_full[idx] if idx < len(all_systems_full) else {}
+        top_for_info = sys_state.get("original_topology") or sys_["topology_path"]
+        traj_for_info = sys_state.get("original_trajectory") or sys_["trajectory_path"]
+        if not Path(top_for_info).is_file() or not Path(traj_for_info).is_file():
+            # Original files moved/gone — fall back to the current paths so
+            # Info still works even if it can't recover the bonds count.
+            top_for_info = sys_["topology_path"]
+            traj_for_info = sys_["trajectory_path"]
         try:
-            return run_info(Path(sys_["topology_path"]), Path(sys_["trajectory_path"]))
+            return run_info(Path(top_for_info), Path(traj_for_info))
         except Exception as exc:
             raise HTTPException(500, str(exc)) from exc
 
@@ -798,6 +897,11 @@ def create_app(workdir: str | Path) -> FastAPI:
         legend). For PCA / Cluster, one independent plot is produced per
         system because cross-system comparison is rarely meaningful.
         """
+        # Reset cancellation state at the start of every run so a Stop
+        # click that landed during a previous run can't poison this one.
+        from post_md.utils import reset_cancellation
+        reset_cancellation()
+
         st = _state(workdir)
         all_systems = st["systems"]
         if not all_systems:
@@ -898,7 +1002,10 @@ def create_app(workdir: str | Path) -> FastAPI:
                         ),
                     )
                 except Exception as exc:
+                    from post_md.utils import Cancelled
                     _set_progress(idx, "prepare", 0, 0, finished=True)
+                    if isinstance(exc, Cancelled):
+                        raise HTTPException(499, "Cancelled by user") from exc
                     raise HTTPException(
                         500, f"prepare failed for system {idx}: {type(exc).__name__}: {exc}",
                     ) from exc
@@ -920,10 +1027,25 @@ def create_app(workdir: str | Path) -> FastAPI:
                 lk.release()
 
         try:
-            result = run_batch(resolved_for_run, analyses, workdir)
+            # Run analyses off the event loop so /api/preprocess-progress
+            # (and /api/cancel-run) stay responsive while a long SASA /
+            # H-bond is churning. Without this the poller appears
+            # "frozen" at the last prep update.
+            result = await loop.run_in_executor(
+                None, run_batch, resolved_for_run, analyses, workdir,
+            )
         except FileNotFoundError as exc:
             raise HTTPException(400, str(exc)) from exc
         except Exception as exc:
+            from post_md.utils import Cancelled
+            if isinstance(exc, Cancelled):
+                raise HTTPException(499, "Cancelled by user") from exc
+            # multiprocessing.Pool.terminate() during pool.map() raises
+            # this — surface as a clean "cancelled" instead of a server
+            # error so the UI can distinguish user-cancel from a crash.
+            msg = str(exc) or type(exc).__name__
+            if "terminate" in msg.lower() or "broken pool" in msg.lower():
+                raise HTTPException(499, "Cancelled by user") from exc
             raise HTTPException(500, f"{type(exc).__name__}: {exc}") from exc
         return {"result": result, "state": _state(workdir)}
 
@@ -937,14 +1059,39 @@ def create_app(workdir: str | Path) -> FastAPI:
             media_type = "image/png"
         return FileResponse(str(path), media_type=media_type, filename=path.name)
 
+    @app.post("/api/cancel-run")
+    async def cancel_run() -> dict[str, Any]:
+        """Signal every in-flight prep / SASA / H-bond to stop ASAP.
+
+        Sets the cancellation event so prep loops bail at the next chunk
+        boundary, and terminates registered multiprocessing pools so
+        SASA / H-bond workers die immediately. The in-flight
+        ``/api/run-batch`` request will then return an error response
+        (typically ``Cancelled by user``)."""
+        from post_md.utils import request_cancellation
+        request_cancellation()
+        return {"cancelled": True}
+
     @app.post("/api/reset")
     async def reset() -> dict[str, Any]:
+        """Nuke every file in the workdir + clear runtime overrides.
+
+        Deletes hidden files too (state.json, config.json, ...) so the
+        next analysis run starts with the same defaults the user gets
+        on a freshly-installed instance. Subdirectories are left alone —
+        we never write into any.
+        """
+        import os
         for entry in workdir.iterdir():
             if entry.is_file():
                 try:
                     entry.unlink()
                 except OSError:
                     pass
+        # Clear the runtime worker-count override since the config file
+        # we wrote it from is gone now. Next analysis falls back to the
+        # 80%-of-cores default until the user sets it again.
+        os.environ.pop("POST_MD_WORKERS", None)
         return {"state": _state(workdir)}
 
     return app

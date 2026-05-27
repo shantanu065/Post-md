@@ -96,15 +96,19 @@ def plot_line(
     ax.set_ylabel(style.ylabel or default_ylabel)
     ax.set_title(style.title or default_title)
     _apply_axis_limits(ax, style)
-    # Y-axis: extend down to 0 for non-negative quantities (RMSD/RMSF/Rg)
-    # so the "0" tick is always visible as a reference.
-    # X-axis: do NOT force to 0 — trajectories that start at e.g. 100 ns
-    # (continuation runs) should display their actual time range, not a
-    # blank 0–100 ns stretch.
+    # Y-axis: only extend down to 0 when the data actually sits near 0
+    # (RMSD / RMSF / H-bond — typically [0..N]). For SASA and Rg the
+    # values are large with a thin band of fluctuation (~10,000 Å²),
+    # and forcing y_min=0 squeezes the whole curve into a flat ribbon
+    # at the top. Heuristic: clamp to 0 only if data.min < 20% of
+    # data.max; otherwise let matplotlib auto-scale to the actual range.
     x_arr = np.asarray(x)
     y_arr = np.asarray(y)
-    if style.ymin is None and y_arr.size and float(y_arr.min()) >= 0:
-        ax.set_ylim(bottom=0)
+    if style.ymin is None and y_arr.size:
+        y_min_v = float(y_arr.min())
+        y_max_v = float(y_arr.max())
+        if y_min_v >= 0 and y_min_v <= max(y_max_v, 0.0) * 0.2:
+            ax.set_ylim(bottom=0)
     _apply_publication_ticks(ax)
     if x_arr.size:
         _force_boundary_ticks_x(ax, float(x_arr.min()), float(x_arr.max()))
@@ -181,8 +185,14 @@ def plot_lines_multi(
     ax.set_ylabel(style.ylabel or default_ylabel)
     ax.set_title(style.title or default_title)
     _apply_axis_limits(ax, style)
-    # Same Y-only-to-zero default as plot_line — see note there.
-    if style.ymin is None and y_min != float("inf") and y_min >= 0:
+    # Same Y-only-to-zero heuristic as plot_line: clamp to 0 only when
+    # the data already lives close to it (RMSD / RMSF / H-bond). For
+    # SASA / Rg / similar "high baseline" curves, auto-scale so the
+    # actual fluctuations are visible instead of a flat band at top.
+    if (style.ymin is None
+            and y_min != float("inf")
+            and y_min >= 0
+            and y_min <= max(y_max, 0.0) * 0.2):
         ax.set_ylim(bottom=0)
     _apply_publication_ticks(ax)
     if x_min != float("inf"):

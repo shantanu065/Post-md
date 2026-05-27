@@ -116,6 +116,18 @@ def hbonds_in_frame(
     return int((cos_dha < cos_cut).sum())
 
 
+def _hbond_chunk_worker(args):
+    """Module-level worker for multiprocessing — picklable."""
+    coords_chunk, donor_heavy, donor_h, acceptor, d_a_cutoff, angle_cutoff_deg = args
+    counts = np.empty(coords_chunk.shape[0], dtype=np.int64)
+    for f in range(coords_chunk.shape[0]):
+        counts[f] = hbonds_in_frame(
+            coords_chunk[f], donor_heavy, donor_h, acceptor,
+            d_a_cutoff=d_a_cutoff, angle_cutoff_deg=angle_cutoff_deg,
+        )
+    return counts
+
+
 def hbond_count_trajectory(
     coords: np.ndarray,
     elements: np.ndarray,
@@ -123,8 +135,19 @@ def hbond_count_trajectory(
     d_a_cutoff: float = 3.5,
     angle_cutoff_deg: float = 150.0,
     xh_cutoff: float = 1.3,
+    n_workers: int | None = None,
 ) -> np.ndarray:
-    """H-bond count per frame across the trajectory. Returns (n_frames,)."""
+    """H-bond count per frame across the trajectory. Returns (n_frames,).
+
+    Frames are independent, so the trajectory is split into ``n_workers``
+    slices and processed in parallel. ``n_workers=None`` resolves to
+    :func:`post_md.utils.default_workers` (80% of host cores).
+    """
+    import multiprocessing
+    from post_md.utils import (
+        default_workers, raise_if_cancelled, register_pool, unregister_pool,
+    )
+
     coords = np.asarray(coords, dtype=np.float64)
     if coords.ndim != 3 or coords.shape[2] != 3:
         raise ValueError("coords must be (n_frames, n_atoms, 3)")
@@ -132,10 +155,50 @@ def hbond_count_trajectory(
     donor_heavy, donor_h, acceptor = find_donors_acceptors(
         coords[0], elements, xh_cutoff=xh_cutoff,
     )
-    counts = np.empty(coords.shape[0], dtype=np.int64)
-    for f in range(coords.shape[0]):
-        counts[f] = hbonds_in_frame(
-            coords[f], donor_heavy, donor_h, acceptor,
-            d_a_cutoff=d_a_cutoff, angle_cutoff_deg=angle_cutoff_deg,
-        )
-    return counts
+    n_frames = int(coords.shape[0])
+    if n_workers is None:
+        n_workers = default_workers()
+    # Serial path: nothing to detect, or tiny trajectory.
+    if (n_workers <= 1
+            or n_frames < n_workers * 2
+            or donor_heavy.size == 0
+            or acceptor.size == 0):
+        counts = np.empty(n_frames, dtype=np.int64)
+        for f in range(n_frames):
+            if f % 256 == 0:
+                raise_if_cancelled()
+            counts[f] = hbonds_in_frame(
+                coords[f], donor_heavy, donor_h, acceptor,
+                d_a_cutoff=d_a_cutoff, angle_cutoff_deg=angle_cutoff_deg,
+            )
+        return counts
+
+    chunk_size = (n_frames + n_workers - 1) // n_workers
+    args = [
+        (coords[i : i + chunk_size], donor_heavy, donor_h, acceptor,
+         d_a_cutoff, angle_cutoff_deg)
+        for i in range(0, n_frames, chunk_size)
+    ]
+    raise_if_cancelled()
+    import time as _time
+    pool = multiprocessing.Pool(processes=n_workers)
+    register_pool(pool)
+    try:
+        async_res = pool.map_async(_hbond_chunk_worker, args)
+        while not async_res.ready():
+            from post_md.utils import is_cancelled as _ic
+            if _ic():
+                pool.terminate()
+                pool.join()
+                from post_md.utils import Cancelled as _C
+                raise _C("Cancelled by user")
+            _time.sleep(0.05)
+        chunk_results = async_res.get()
+    finally:
+        unregister_pool(pool)
+        try:
+            pool.close()
+            pool.join()
+        except Exception:
+            pass
+    return np.concatenate(chunk_results)

@@ -331,27 +331,36 @@ class AmberNetCDFTrajectory(Trajectory):
         from numpy.lib.stride_tricks import as_strided
         out = np.empty((stop - start, n_sel, 3), dtype=np.float32)
 
-        cursor = 0
-        chunk_start = start
+        # Hot read path for analyses that load the whole trajectory
+        # (rmsd / rmsf / rg / pca). Long Prod.nc files spend most of
+        # their wall-time in this loop, so:
+        #   1. raise_if_cancelled() at each chunk so Stop can interrupt;
+        #   2. ThreadPoolExecutor parallelises the byteswap + memcpy
+        #      across cores. numpy releases the GIL during astype() so
+        #      threads actually scale up to ~memory-bandwidth limit.
+        from post_md.utils import raise_if_cancelled, default_workers
+
         buf_size = len(self._buf)
-        while chunk_start < stop:
-            chunk_stop = min(chunk_start + frames_per_chunk, stop)
-            n_chunk = chunk_stop - chunk_start
-            base_offset = coord_var.begin + chunk_start * rec_size
+
+        def _process_chunk(chunk_start: int) -> None:
+            raise_if_cancelled()
+            cs = chunk_start
+            ce = min(cs + frames_per_chunk, stop)
+            n_chunk = ce - cs
+            base_offset = coord_var.begin + cs * rec_size
             needed = (n_chunk - 1) * rec_size + self._n_atoms * 12
+            out_cursor = cs - start
             if base_offset + needed > buf_size:
                 # Truncated file — fall back to per-frame reads for the tail.
-                for i in range(chunk_start, chunk_stop):
+                for i in range(cs, ce):
                     f = self.read_frame(i)
                     coords_i = (
                         f.coordinates if sel_slice is None and sel_arr is None
                         else f.coordinates[sel_slice] if sel_slice is not None
                         else f.coordinates[sel_arr]
                     )
-                    out[cursor] = coords_i
-                    cursor += 1
-                chunk_start = chunk_stop
-                continue
+                    out[out_cursor + (i - cs)] = coords_i
+                return
 
             raw = np.frombuffer(
                 self._buf, dtype=np.uint8, offset=base_offset, count=needed,
@@ -363,23 +372,33 @@ class AmberNetCDFTrajectory(Trajectory):
                 strides=(rec_size, 12, 4),
                 writeable=False,
             )
-            # Materialise just this chunk into native float32, then narrow
-            # to the selection in one fused indexing op.
             if sel_slice is None and sel_arr is None:
-                out[cursor : cursor + n_chunk] = strided.astype(np.float32, copy=True)
+                out[out_cursor : out_cursor + n_chunk] = (
+                    strided.astype(np.float32, copy=True)
+                )
             elif sel_slice is not None:
-                out[cursor : cursor + n_chunk] = (
+                out[out_cursor : out_cursor + n_chunk] = (
                     strided[:, sel_slice, :].astype(np.float32, copy=True)
                 )
             else:
-                # Fancy indexing on the strided view materialises the chunk
-                # in-place via the byteswap inside astype below.
-                out[cursor : cursor + n_chunk] = (
+                out[out_cursor : out_cursor + n_chunk] = (
                     strided[:, sel_arr, :].astype(np.float32, copy=True)
                 )
 
-            cursor += n_chunk
-            chunk_start = chunk_stop
+        chunk_starts = list(range(start, stop, frames_per_chunk))
+        # Thread parallelism for the load. Cap at min(workers, 32, n_chunks):
+        # past ~16-32 threads we're bandwidth-bound on NFS / local disk
+        # and extra threads just contend for the mmap.
+        n_threads = min(default_workers(), 32, len(chunk_starts))
+        if n_threads <= 1 or len(chunk_starts) <= 1:
+            for cs in chunk_starts:
+                _process_chunk(cs)
+        else:
+            from concurrent.futures import ThreadPoolExecutor
+            with ThreadPoolExecutor(max_workers=n_threads) as ex:
+                # ex.map raises the first exception from any worker, which
+                # is what we want for cancellation propagation.
+                list(ex.map(_process_chunk, chunk_starts))
 
         return out
 

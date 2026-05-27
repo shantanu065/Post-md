@@ -949,9 +949,15 @@ footer.pagefoot code { font-family: var(--mono); color: var(--muted); }
 
   <div class="run-row">
     <button id="btn-run-batch" class="primary">▶ Run analysis</button>
+    <button id="btn-cancel-run" class="ghost" hidden title="Stop the in-flight analysis. Multiprocessing workers are terminated immediately, prep loops exit at the next chunk.">■ Stop</button>
     <label class="ai-toggle" title="Wraps PBC-split molecules back together and centres the anchor at the box centre, cpptraj-style. Turn off if the trajectory is already imaged.">
       <input type="checkbox" id="opt-autoimage" checked>
       <span>Autoimage</span>
+    </label>
+    <label class="ai-toggle" title="Number of CPU cores used for parallel analyses (SASA, H-bond). Saved across server restarts. Leave blank for auto (80% of detected cores).">
+      <span>Workers:</span>
+      <input type="number" id="opt-workers" min="1" style="width: 5rem;" placeholder="auto">
+      <span id="workers-hint" class="muted" style="font-size: 0.82rem;"></span>
     </label>
     <span class="spacer"></span>
     <span id="run-status" class="run-status"></span>
@@ -1076,7 +1082,7 @@ function addSystemRow(initial) {
 
     <label>Topology <small>.prmtop / .parm7 / .pdb / .gro</small>
       <div class="path-row" style="margin-top: 0.25rem;">
-        <input type="text" class="topology-input mono" placeholder="/path/to/system.prmtop" value="${(initial && initial.topology_path) || ''}">
+        <input type="text" class="topology-input mono" placeholder="/path/to/system.prmtop" value="${(initial && (initial.original_topology || initial.topology_path)) || ''}">
         <button type="button" class="btn-browse-topology">Browse…</button>
       </div>
       <div class="file-browser browser-topology" style="display:none"></div>
@@ -1084,7 +1090,7 @@ function addSystemRow(initial) {
 
     <label style="margin-top: 0.2rem;">Trajectory <small>.nc / .xtc / .trr / .mdcrd</small>
       <div class="path-row" style="margin-top: 0.25rem;">
-        <input type="text" class="trajectory-input mono" placeholder="/path/to/prod.nc" value="${(initial && initial.trajectory_path) || ''}">
+        <input type="text" class="trajectory-input mono" placeholder="/path/to/prod.nc" value="${(initial && (initial.original_trajectory || initial.trajectory_path)) || ''}">
         <button type="button" class="btn-browse-trajectory">Browse…</button>
       </div>
       <div class="file-browser browser-trajectory" style="display:none"></div>
@@ -1338,6 +1344,31 @@ function collectOptions(tab) {
 }
 
 // ---- Run batch ----
+// Show the Stop button + hide Run while a run is in flight. Stop fires
+// /api/cancel-run which terminates the multiprocessing pools and trips
+// the prep loop's cancellation check.
+function setRunningUI(running) {
+  $('#btn-run-batch').hidden = running;
+  $('#btn-cancel-run').hidden = !running;
+}
+
+// Sticky cancellation latch — once user clicks Stop, the run loop on
+// the frontend stops issuing new /api/run-batch calls. Without this
+// flag the server's reset_cancellation() at the start of every call
+// would wipe the cancel signal as we moved from rg → sasa → hbond.
+let cancelRequested = false;
+
+$('#btn-cancel-run').addEventListener('click', async () => {
+  cancelRequested = true;
+  setGlobalStatus('Cancelling…', 'running');
+  $('#btn-cancel-run').disabled = true;
+  try {
+    await fetch('/api/cancel-run', { method: 'POST' });
+  } catch (e) {
+    setGlobalStatus(`Cancel failed: ${e.message}`, 'error');
+  }
+});
+
 $('#btn-run-batch').addEventListener('click', async () => {
   const selected = $$('.analysis-block input[data-toggle]:checked')
     .map(cb => cb.dataset.toggle);
@@ -1369,6 +1400,9 @@ $('#btn-run-batch').addEventListener('click', async () => {
   setGlobalStatus(`Running ${selected.length} analysis (${selected.join(', ')})…`, 'running');
   $('#results-area').innerHTML = '';
 
+  cancelRequested = false;
+  $('#btn-cancel-run').disabled = false;
+  setRunningUI(true);
   const rows = $$('#systems-list .system-row');
   let runInFlight = true;
   // Single shared poller for all systems. Each tick polls every system's
@@ -1417,13 +1451,11 @@ $('#btn-run-batch').addEventListener('click', async () => {
             formatProgress(snap, `Preparing ${state.systems[activeIdx].label}`),
             'running',
           );
-        } else if (anyStarted && allDone) {
-          // Every selected system has its prepared file ready; the
-          // long-running call is now the analyses themselves.
-          setGlobalStatus(
-            `Running analyses (${selected.join(', ')})…`, 'running',
-          );
         }
+        // When activeIdx < 0 (no prep in progress) the run loop owns the
+        // global status — it sets a more specific "Running <name>…" per
+        // analysis. Don't overwrite that with a generic "Running
+        // analyses…" string.
       } catch (_) {
         // transient — keep polling
       }
@@ -1448,21 +1480,82 @@ $('#btn-run-batch').addEventListener('click', async () => {
 
     if (Object.keys(batchAnalyses).length) {
       const doAutoimage = !!$('#opt-autoimage').checked;
-      const r = await fetch('/api/run-batch', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ analyses: batchAnalyses, autoimage: doAutoimage }),
-      });
-      const data = await r.json();
-      if (!r.ok) {
-        setRunStatus(`Error: ${data.detail || r.statusText}`, true);
-        setGlobalStatus(`Error: ${data.detail || r.statusText}`, 'error');
+
+      // Streaming render: one /api/run-batch call per ticked analysis,
+      // each result rendered as soon as it returns. First call also does
+      // the prep; subsequent calls hit the cache and only run the
+      // analysis itself — so user sees results trickle in instead of
+      // waiting for the whole batch.
+      const orderedAnalyses = Object.keys(batchAnalyses);
+      // Pre-create placeholders in display order so user sees the
+      // skeleton of pending analyses upfront.
+      const placeholders = {};
+      for (const name of orderedAnalyses) {
+        placeholders[name] = insertRunningPlaceholder(name);
+      }
+
+      let firstFailure = null;
+      let wasCancelled = false;
+      for (const name of orderedAnalyses) {
+        // Bail before starting the next analysis if user clicked Stop.
+        // The previous analysis call may have returned 499 (cancelled)
+        // or completed naturally; either way, don't issue more work.
+        if (cancelRequested) {
+          placeholders[name].replaceWith(insertErrorBlock(name, 'Cancelled'));
+          wasCancelled = true;
+          continue;
+        }
+        setRunStatus(`Running ${name}…`, false);
+        setGlobalStatus(`Running ${name}…`, 'running');
+        try {
+          const r = await fetch('/api/run-batch', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({
+              analyses: { [name]: batchAnalyses[name] },
+              autoimage: doAutoimage,
+            }),
+          });
+          // r.status === 499 → user cancelled mid-flight on the server
+          // side (Cancelled exception bubbled up). Mark as cancelled
+          // without surfacing the generic error styling.
+          if (r.status === 499) {
+            placeholders[name].replaceWith(insertErrorBlock(name, 'Cancelled'));
+            wasCancelled = true;
+            continue;
+          }
+          const data = await r.json();
+          if (!r.ok) {
+            const errBlock = insertErrorBlock(name, data.detail || r.statusText);
+            placeholders[name].replaceWith(errBlock);
+            firstFailure = firstFailure || (data.detail || r.statusText);
+            continue;
+          }
+          if (data.result && data.result[name]) {
+            const real = renderOneResult(name, data.result[name]);
+            placeholders[name].replaceWith(real);
+          } else {
+            placeholders[name].remove();
+          }
+          if (data.state) {
+            state = data.state;
+            renderStatus();
+          }
+        } catch (e) {
+          const errBlock = insertErrorBlock(name, e.message || String(e));
+          placeholders[name].replaceWith(errBlock);
+          firstFailure = firstFailure || e.message;
+        }
+      }
+      if (wasCancelled) {
+        setRunStatus('Cancelled.', true);
+        setGlobalStatus('Cancelled.', 'error');
         return;
       }
-      renderBatchResults(data.result);
-      if (data.state) {
-        state = data.state;
-        renderStatus();
+      if (firstFailure) {
+        setRunStatus(`Done with errors: ${firstFailure}`, true);
+        setGlobalStatus(`Done with errors: ${firstFailure}`, 'error');
+        return;  // skip "Done." overwrite below
       }
     } else {
       await refreshStatus();
@@ -1477,6 +1570,7 @@ $('#btn-run-batch').addEventListener('click', async () => {
     runInFlight = false;
     await combinedPoller;
     for (const row of rows) showPrepareStatus(row, '');
+    setRunningUI(false);
   }
 });
 
@@ -1504,59 +1598,93 @@ function renderInfo(infos) {
   area.appendChild(block);
 }
 
+// Renders ONE analysis result into a fresh DOM block and returns it.
+// Used both by the streaming Run-analysis loop (one block per call) and
+// the legacy batched render path (loop + append).
+function renderOneResult(name, entry) {
+  const block = document.createElement('div');
+  block.className = 'result-block';
+  block.dataset.analysis = name;
+  const title = document.createElement('h4');
+  title.textContent = name.toUpperCase();
+  block.appendChild(title);
+
+  if (entry.systems) {
+    const linksWrap = document.createElement('p');
+    const links = [];
+    for (const s of entry.systems) {
+      if (s.data) {
+        links.push(
+          `<strong>${s.label}:</strong> ` +
+          `<a href="/api/result/${encodeURIComponent(s.data)}" target="_blank" download>${s.data}</a>` +
+          (s.plot ? ` &middot; <a href="/api/result/${encodeURIComponent(s.plot)}" target="_blank" download>${s.plot}</a>` : '') +
+          (s.rep_pdb ? ` &middot; <a href="/api/result/${encodeURIComponent(s.rep_pdb)}" target="_blank" download>${s.rep_pdb}</a>` : '')
+        );
+      }
+    }
+    linksWrap.innerHTML = links.join('<br>');
+    block.appendChild(linksWrap);
+  }
+
+  if (entry.plot) {
+    const links = document.createElement('p');
+    links.innerHTML =
+      `Combined plot: <a href="/api/result/${encodeURIComponent(entry.plot)}" target="_blank" download>${entry.plot}</a>`;
+    block.appendChild(links);
+    const img = document.createElement('img');
+    img.src = `/api/result/${encodeURIComponent(entry.plot)}?cb=${Date.now()}`;
+    img.alt = `${name} plot`;
+    img.addEventListener('click', () => openLightbox(img.src));
+    block.appendChild(img);
+  }
+
+  if (entry.systems && !entry.plot) {
+    for (const s of entry.systems) {
+      if (s.plot) {
+        const lbl = document.createElement('p');
+        lbl.innerHTML = `<strong>${s.label}</strong>`;
+        block.appendChild(lbl);
+        const img = document.createElement('img');
+        img.src = `/api/result/${encodeURIComponent(s.plot)}?cb=${Date.now()}`;
+        img.alt = `${name} ${s.label}`;
+        img.addEventListener('click', () => openLightbox(img.src));
+        block.appendChild(img);
+      }
+    }
+  }
+  return block;
+}
+
+// Insert a "Running …" placeholder so the user sees something for each
+// ticked analysis the moment they hit Run, before that analysis returns.
+function insertRunningPlaceholder(name) {
+  const area = $('#results-area');
+  const block = document.createElement('div');
+  block.className = 'result-block running';
+  block.dataset.analysis = name;
+  block.innerHTML =
+    `<h4>${name.toUpperCase()}</h4>` +
+    `<p class="muted">Running… <span class="spinner-dots">●●●</span></p>`;
+  area.appendChild(block);
+  return block;
+}
+
+function insertErrorBlock(name, message) {
+  const block = document.createElement('div');
+  block.className = 'result-block error';
+  block.dataset.analysis = name;
+  block.innerHTML =
+    `<h4>${name.toUpperCase()}</h4>` +
+    `<p class="error">Failed: ${message}</p>`;
+  return block;
+}
+
+// Legacy multi-result render — used by the Info path which still pulls
+// a single bundled response. Just loops + appends.
 function renderBatchResults(result) {
   const area = $('#results-area');
   for (const [name, entry] of Object.entries(result)) {
-    const block = document.createElement('div');
-    block.className = 'result-block';
-    const title = document.createElement('h4');
-    title.textContent = name.toUpperCase();
-    block.appendChild(title);
-
-    if (entry.systems) {
-      const linksWrap = document.createElement('p');
-      const links = [];
-      for (const s of entry.systems) {
-        if (s.data) {
-          links.push(
-            `<strong>${s.label}:</strong> ` +
-            `<a href="/api/result/${encodeURIComponent(s.data)}" target="_blank" download>${s.data}</a>` +
-            (s.plot ? ` &middot; <a href="/api/result/${encodeURIComponent(s.plot)}" target="_blank" download>${s.plot}</a>` : '') +
-            (s.rep_pdb ? ` &middot; <a href="/api/result/${encodeURIComponent(s.rep_pdb)}" target="_blank" download>${s.rep_pdb}</a>` : '')
-          );
-        }
-      }
-      linksWrap.innerHTML = links.join('<br>');
-      block.appendChild(linksWrap);
-    }
-
-    if (entry.plot) {
-      const links = document.createElement('p');
-      links.innerHTML =
-        `Combined plot: <a href="/api/result/${encodeURIComponent(entry.plot)}" target="_blank" download>${entry.plot}</a>`;
-      block.appendChild(links);
-      const img = document.createElement('img');
-      img.src = `/api/result/${encodeURIComponent(entry.plot)}?cb=${Date.now()}`;
-      img.alt = `${name} plot`;
-      img.addEventListener('click', () => openLightbox(img.src));
-      block.appendChild(img);
-    }
-
-    if (entry.systems && !entry.plot) {
-      for (const s of entry.systems) {
-        if (s.plot) {
-          const lbl = document.createElement('p');
-          lbl.innerHTML = `<strong>${s.label}</strong>`;
-          block.appendChild(lbl);
-          const img = document.createElement('img');
-          img.src = `/api/result/${encodeURIComponent(s.plot)}?cb=${Date.now()}`;
-          img.alt = `${name} ${s.label}`;
-          img.addEventListener('click', () => openLightbox(img.src));
-          block.appendChild(img);
-        }
-      }
-    }
-    area.appendChild(block);
+    area.appendChild(renderOneResult(name, entry));
   }
 }
 
@@ -1584,10 +1712,55 @@ $('#btn-refresh-results').addEventListener('click', async () => {
   setGlobalStatus('Status refreshed.', 'ok');
 });
 
+// ---- persistent settings (workers count) ----
+async function loadSettings() {
+  try {
+    const r = await fetch('/api/settings');
+    if (!r.ok) return;
+    const s = await r.json();
+    const input = $('#opt-workers');
+    const hint = $('#workers-hint');
+    if (s.workers != null) {
+      input.value = s.workers;
+    } else {
+      input.value = '';
+    }
+    hint.textContent = `(active: ${s.effective_workers} / ${s.total_cores} cores)`;
+  } catch (_) { /* harmless */ }
+}
+
+async function saveWorkersSetting() {
+  const raw = $('#opt-workers').value.trim();
+  const payload = { workers: raw === '' ? null : Number(raw) };
+  try {
+    const r = await fetch('/api/settings', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(payload),
+    });
+    if (!r.ok) {
+      const d = await r.json().catch(() => ({}));
+      setGlobalStatus(`Workers setting rejected: ${d.detail || r.statusText}`, 'error');
+      return;
+    }
+    const s = await r.json();
+    $('#workers-hint').textContent = `(active: ${s.effective_workers} / ${s.total_cores} cores, saved)`;
+  } catch (e) {
+    setGlobalStatus(`Workers save failed: ${e.message}`, 'error');
+  }
+}
+
+// Auto-save on blur or Enter — avoids saving on every keystroke.
+$('#opt-workers').addEventListener('change', saveWorkersSetting);
+$('#opt-workers').addEventListener('keydown', (e) => {
+  if (e.key === 'Enter') { e.preventDefault(); saveWorkersSetting(); }
+});
+
 // ---- bootstrap ----
 (async function init() {
   setGlobalStatus('Loading…', 'running');
   await refreshStatus();
+  await loadSettings();
   renderSystems();
   setGlobalStatus('Ready.', 'ok');
 })();
