@@ -93,7 +93,6 @@ def write_minimal_prmtop(
     # (selections preserve original atom order).
     unique_resids, inverse = np.unique(residue_ids_old, return_inverse=True)
     # Reorder unique_resids by first appearance.
-    first_pos = np.empty_like(unique_resids)
     seen: set[int] = set()
     order: list[int] = []
     for r in residue_ids_old.tolist():

@@ -16,7 +16,6 @@ from __future__ import annotations
 
 import numpy as np
 
-
 # Element → van der Waals radius (Å). Bondi-style values; matches what
 # Shrake & Rupley used + the AMBER mbondi set. Unknown elements get a
 # conservative 1.7 Å (carbon).
@@ -140,8 +139,12 @@ def sasa_trajectory(
     (80% of the host's CPU cores by default).
     """
     import multiprocessing
+
     from post_md.utils import (
-        default_workers, raise_if_cancelled, register_pool, unregister_pool,
+        default_workers,
+        raise_if_cancelled,
+        register_pool,
+        unregister_pool,
     )
 
     coords = np.asarray(coords, dtype=np.float64)

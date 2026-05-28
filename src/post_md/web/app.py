@@ -310,6 +310,7 @@ def create_app(workdir: str | Path) -> FastAPI:
         UI can show "X of Y cores" without an extra round-trip.
         """
         import os
+
         from post_md.utils import default_workers
 
         cfg = _pmd_config.load_config(workdir)
@@ -324,6 +325,7 @@ def create_app(workdir: str | Path) -> FastAPI:
         """Save settings to the workdir config and apply immediately
         (no server restart needed)."""
         import os
+
         from post_md.utils import default_workers
 
         cfg = _pmd_config.load_config(workdir)
@@ -335,7 +337,7 @@ def create_app(workdir: str | Path) -> FastAPI:
                 try:
                     n = int(raw)
                 except (TypeError, ValueError):
-                    raise HTTPException(400, "'workers' must be an integer or null")
+                    raise HTTPException(400, "'workers' must be an integer or null") from None
                 if n < 1:
                     raise HTTPException(400, "'workers' must be >= 1")
                 cfg["workers"] = n
@@ -640,13 +642,13 @@ def create_app(workdir: str | Path) -> FastAPI:
             prior_orig_top = str(prior.get("original_topology") or "").strip()
             prior_orig_traj = str(prior.get("original_trajectory") or "").strip()
             workdir_str = str(workdir)
-            def _is_useful_original(p: str) -> bool:
+            def _is_useful_original(p: str, _workdir_str: str = workdir_str) -> bool:
                 # An "original" must (a) exist and (b) not live inside the
                 # workdir's prepared-cache area, otherwise it's just a
                 # stale chained pointer from the earlier bug.
                 if not p or not Path(p).is_file():
                     return False
-                if p.startswith(workdir_str) and "-prepared_" in Path(p).name:
+                if p.startswith(_workdir_str) and "-prepared_" in Path(p).name:
                     return False
                 return True
 
@@ -735,7 +737,7 @@ def create_app(workdir: str | Path) -> FastAPI:
         Long-running for big trajectories; uses ``run_in_executor`` so
         the FastAPI event loop stays responsive.
         """
-        st = _state(workdir)
+        _state(workdir)
         systems = _read_systems(workdir)
         if not systems:
             raise HTTPException(400, "Register a system first.")
@@ -994,9 +996,9 @@ def create_app(workdir: str | Path) -> FastAPI:
                 try:
                     top_out, traj_out, _summary = await loop.run_in_executor(
                         None,
-                        lambda: prepare_trajectory(
-                            src_top, src_traj, workdir,
-                            output_basename=f"{src_stem}{PREPARED_MARKER}{idx}-{tag}",
+                        lambda _top=src_top, _traj=src_traj, _stem=src_stem, _idx=idx, _tag=tag: prepare_trajectory(
+                            _top, _traj, workdir,
+                            output_basename=f"{_stem}{PREPARED_MARKER}{_idx}-{_tag}",
                             autoimage=do_autoimage,
                             progress=_cb,
                         ),

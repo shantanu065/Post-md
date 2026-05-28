@@ -338,7 +338,7 @@ class AmberNetCDFTrajectory(Trajectory):
         #   2. ThreadPoolExecutor parallelises the byteswap + memcpy
         #      across cores. numpy releases the GIL during astype() so
         #      threads actually scale up to ~memory-bandwidth limit.
-        from post_md.utils import raise_if_cancelled, default_workers
+        from post_md.utils import default_workers, raise_if_cancelled
 
         buf_size = len(self._buf)
 

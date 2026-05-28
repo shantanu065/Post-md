@@ -624,6 +624,7 @@ def web(
     typer.echo(f"Post_MD web UI starting at http://{host}:{port}")
     typer.echo(f"Workdir: {Path(workdir).resolve()}")
     import os
+
     from post_md.utils import default_workers
     total_cores = os.cpu_count() or 1
     workers = default_workers()

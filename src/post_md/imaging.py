@@ -32,8 +32,8 @@ whose columns are the cell vectors).
 
 from __future__ import annotations
 
+from collections.abc import Callable
 from pathlib import Path
-from typing import Callable
 
 import numpy as np
 
@@ -346,7 +346,8 @@ def autoimage_trajectory(
                 if not np.allclose(box_arr, np.diag(np.diag(box_arr)), atol=1e-4):
                     a, b, c = box_arr[0], box_arr[1], box_arr[2]
                     def _ang(u_, v_):
-                        nu = np.linalg.norm(u_); nv = np.linalg.norm(v_)
+                        nu = np.linalg.norm(u_)
+                        nv = np.linalg.norm(v_)
                         if nu == 0 or nv == 0:
                             return 90.0
                         cos = float(np.dot(u_, v_) / (nu * nv))

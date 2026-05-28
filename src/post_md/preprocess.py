@@ -16,14 +16,13 @@ output topology.
 
 from __future__ import annotations
 
+from collections.abc import Callable
 from pathlib import Path
-from typing import Callable
 
 import numpy as np
 
 from post_md.core.universe import Universe
 from post_md.io.amber.prmtop_writer import write_minimal_prmtop
-
 
 # Common solvent / counterion residue labels seen across AMBER, GROMACS,
 # CHARMM force fields. Matching is case-insensitive and trimmed.
@@ -35,7 +34,7 @@ ION_RESNAMES = frozenset({
     # AMBER / common
     "NA", "CL", "K", "MG", "ZN", "CA", "FE", "CU", "MN", "CO",
     "NA+", "CL-", "K+", "MG2+", "CA2+", "ZN2+", "FE2+", "FE3+",
-    "Na+", "Cl-", "K+", "Mg2+", "Ca2+", "Zn2+",
+    "Na+", "Cl-", "Mg2+", "Ca2+", "Zn2+",
     "RB", "CS", "BR", "I",
     # CHARMM
     "POT", "SOD", "CLA", "CES", "RUB", "CIO",
@@ -83,6 +82,7 @@ def prepare_trajectory(
     Returns ``(new_topology_path, new_trajectory_path, summary)``.
     """
     from scipy.io import netcdf_file
+
     from post_md.core.selection import select
     from post_md.imaging import (
         autoimage_frame,
@@ -236,7 +236,8 @@ def prepare_trajectory(
                 if not np.allclose(box_arr, np.diag(np.diag(box_arr)), atol=1e-4):
                     a, b, c = box_arr[0], box_arr[1], box_arr[2]
                     def _ang(u, v):
-                        nu = np.linalg.norm(u); nv = np.linalg.norm(v)
+                        nu = np.linalg.norm(u)
+                        nv = np.linalg.norm(v)
                         if nu == 0 or nv == 0:
                             return 90.0
                         cos = float(np.dot(u, v) / (nu * nv))
@@ -374,7 +375,8 @@ def strip_solvent(
                             # Recover angles from the triclinic basis.
                             a, bv, cv = b[0], b[1], b[2]
                             def _ang(u, v):
-                                nu = np.linalg.norm(u); nv = np.linalg.norm(v)
+                                nu = np.linalg.norm(u)
+                                nv = np.linalg.norm(v)
                                 if nu == 0 or nv == 0:
                                     return 90.0
                                 cos = float(np.dot(u, v) / (nu * nv))

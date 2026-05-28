@@ -21,7 +21,6 @@ from __future__ import annotations
 
 import numpy as np
 
-
 _HBOND_DONOR_ACCEPTOR_ELEMENTS = ("N", "O")
 
 
@@ -63,7 +62,7 @@ def find_donors_acceptors(
     tree_h = cKDTree(coords[h_idx])
     donor_heavy: list[int] = []
     donor_h: list[int] = []
-    for hi, heavy in enumerate(heavy_idx):
+    for _hi, heavy in enumerate(heavy_idx):
         # H atoms within covalent-bond distance of this heavy atom.
         cands = tree_h.query_ball_point(coords[heavy], xh_cutoff)
         for k in cands:
@@ -144,8 +143,12 @@ def hbond_count_trajectory(
     :func:`post_md.utils.default_workers` (80% of host cores).
     """
     import multiprocessing
+
     from post_md.utils import (
-        default_workers, raise_if_cancelled, register_pool, unregister_pool,
+        default_workers,
+        raise_if_cancelled,
+        register_pool,
+        unregister_pool,
     )
 
     coords = np.asarray(coords, dtype=np.float64)
