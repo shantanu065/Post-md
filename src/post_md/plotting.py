@@ -88,27 +88,15 @@ def plot_line(
         color=style.color,
         label=style.legend_label,
     )
-    # Snug fit to data: removes matplotlib's default ~5% breathing room so
-    # the curve starts at the y-axis with no visible gap. User-supplied
-    # x/y min-max overrides applied below take precedence.
     ax.margins(x=0, y=0)
     ax.set_xlabel(style.xlabel or default_xlabel)
     ax.set_ylabel(style.ylabel or default_ylabel)
     ax.set_title(style.title or default_title)
     _apply_axis_limits(ax, style)
-    # Y-axis: only extend down to 0 when the data actually sits near 0
-    # (RMSD / RMSF / H-bond — typically [0..N]). For SASA and Rg the
-    # values are large with a thin band of fluctuation (~10,000 Å²),
-    # and forcing y_min=0 squeezes the whole curve into a flat ribbon
-    # at the top. Heuristic: clamp to 0 only if data.min < 20% of
-    # data.max; otherwise let matplotlib auto-scale to the actual range.
     x_arr = np.asarray(x)
     y_arr = np.asarray(y)
     if style.ymin is None and y_arr.size:
-        y_min_v = float(y_arr.min())
-        y_max_v = float(y_arr.max())
-        if y_min_v >= 0 and y_min_v <= max(y_max_v, 0.0) * 0.2:
-            ax.set_ylim(bottom=0)
+        _set_robust_ylim(ax, y_arr, style)
     _apply_publication_ticks(ax)
     if x_arr.size:
         _force_boundary_ticks_x(ax, float(x_arr.min()), float(x_arr.max()))
@@ -185,15 +173,9 @@ def plot_lines_multi(
     ax.set_ylabel(style.ylabel or default_ylabel)
     ax.set_title(style.title or default_title)
     _apply_axis_limits(ax, style)
-    # Same Y-only-to-zero heuristic as plot_line: clamp to 0 only when
-    # the data already lives close to it (RMSD / RMSF / H-bond). For
-    # SASA / Rg / similar "high baseline" curves, auto-scale so the
-    # actual fluctuations are visible instead of a flat band at top.
-    if (style.ymin is None
-            and y_min != float("inf")
-            and y_min >= 0
-            and y_min <= max(y_max, 0.0) * 0.2):
-        ax.set_ylim(bottom=0)
+    if style.ymin is None and y_min != float("inf"):
+        all_y = np.concatenate([np.asarray(cy) for (_, cy) in curves])
+        _set_robust_ylim(ax, all_y, style)
     _apply_publication_ticks(ax)
     if x_min != float("inf"):
         _force_boundary_ticks_x(ax, x_min, x_max)
@@ -201,6 +183,34 @@ def plot_lines_multi(
         ax.grid(alpha=0.3)
     ax.legend(loc="best", frameon=True)
     _save(fig, output_path, style.dpi)
+
+
+def _set_robust_ylim(ax, y_arr: np.ndarray, style: PlotStyle) -> None:
+    """Set y-axis limits that ignore outlier spikes.
+
+    Uses the 1st–99th percentile range with 10 % padding so a single
+    extreme frame doesn't compress the entire plot.  When the data sits
+    near zero (RMSD / RMSF / H-bond) the floor is clamped to 0 instead.
+    """
+    if y_arr.size == 0:
+        return
+    p1, p99 = float(np.percentile(y_arr, 1)), float(np.percentile(y_arr, 99))
+    span = p99 - p1
+    if span < 1e-12:
+        # Nearly constant — let matplotlib auto-scale.
+        return
+    pad = span * 0.10
+    lo = p1 - pad
+    hi = p99 + pad
+    # Clamp to 0 only when data actually starts near zero (RMSD, RMSF,
+    # H-bond where values range 0..N).  For SASA / Rg the baseline is
+    # high (e.g. 9000+) — clamping to 0 would compress all the detail.
+    if p1 >= 0 and p1 <= max(p99, 0.0) * 0.05:
+        lo = 0
+    if style.ymin is None:
+        ax.set_ylim(bottom=lo)
+    if style.ymax is None:
+        ax.set_ylim(top=hi)
 
 
 def _force_boundary_ticks_x(ax, x_min: float, x_max: float) -> None:

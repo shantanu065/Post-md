@@ -3,1766 +3,570 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>Post_MD — MD trajectory analysis</title>
+<title>Post MD — MD Trajectory Analysis</title>
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-<link href="https://fonts.googleapis.com/css2?family=Geist:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet">
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet">
 <style>
-/* ============================================================
-   Design tokens — Aurora Glass
-   ============================================================ */
-:root {
-  /* Aurora gradient stops */
-  --aurora-1: #1e1b4b;      /* indigo-950, base                       */
-  --aurora-2: #4c1d95;      /* violet-900, glow                       */
-  --aurora-3: #0d9488;      /* teal-600, glow                         */
+:root{
+  --text:#111318;--text-2:#3d4455;--muted:#6c7281;--dim:#9ea3b0;
+  --border:#e1e4ea;--accent:#2563eb;--accent-hover:#1d4ed8;--accent-soft:rgba(37,99,235,0.07);
+  --danger:#dc2626;--danger-soft:#fef2f2;--ok:#059669;--ok-soft:#ecfdf5;
+  --hero-bg:#0f172a;
+  --sans:"Inter",system-ui,-apple-system,sans-serif;
+  --mono:"JetBrains Mono",ui-monospace,monospace;
+}
+*{box-sizing:border-box;margin:0;padding:0}
+html{height:100%;scroll-behavior:smooth}
+body{min-height:100%;background:#fff;color:var(--text);font-family:var(--sans);font-size:14px;line-height:1.55;-webkit-font-smoothing:antialiased}
 
-  /* Glass surfaces */
-  --glass-bg:     rgba(15, 23, 42, 0.55);
-  --glass-bg-2:   rgba(15, 23, 42, 0.72);
-  --glass-bg-3:   rgba(15, 23, 42, 0.85);
-  --glass-border: rgba(255, 255, 255, 0.10);
-  --glass-border-strong: rgba(255, 255, 255, 0.18);
-  --glass-shadow: 0 8px 32px rgba(0, 0, 0, 0.35);
-  --glass-blur:   blur(20px) saturate(140%);
+/* ── Hero Banner ── */
+.hero{position:relative;background:var(--hero-bg);overflow:hidden}
+.hero-bg{position:absolute;inset:0;opacity:0.18;pointer-events:none}
+.hero-bg svg{width:100%;height:100%}
+.hero-nav{
+  position:relative;display:flex;align-items:center;gap:0.5rem;
+  max-width:1100px;margin:0 auto;padding:0.8rem 2rem;
+}
+.hero-nav .brand{
+  display:flex;align-items:center;gap:0.5rem;
+  font-weight:700;font-size:1rem;color:#fff;letter-spacing:-0.02em;
+}
+.hero-nav .brand i{
+  width:26px;height:26px;background:var(--accent);border-radius:6px;
+  display:inline-flex;align-items:center;justify-content:center;
+  font-style:normal;font-weight:800;font-size:0.75rem;color:#fff;
+}
+.hero-nav .spacer{flex:1}
+.hero-nav .ver{font-family:var(--mono);font-size:0.7rem;color:rgba(255,255,255,0.35);border:1px solid rgba(255,255,255,0.1);padding:0.1rem 0.5rem;border-radius:99px}
+.hero-body{
+  position:relative;max-width:1100px;margin:0 auto;
+  padding:2.5rem 2rem 2.8rem;
+}
+.hero-body h1{margin:0;font-size:2.8rem;font-weight:800;color:#fff;letter-spacing:-0.03em;line-height:1.1}
+.hero-body p{margin:0.7rem 0 0;color:rgba(255,255,255,0.55);font-size:0.95rem;max-width:600px;line-height:1.5}
 
-  /* Text */
-  --text:  #f1f5f9;
-  --muted: rgba(241, 245, 249, 0.62);
-  --dim:   rgba(241, 245, 249, 0.40);
+/* ── Content ── */
+.content{max-width:1100px;margin:0 auto;padding:0 2rem 4rem}
 
-  /* Accent */
-  --accent:      #2dd4bf;
-  --accent-2:    #14b8a6;
-  --accent-glow: rgba(45, 212, 191, 0.35);
-  --accent-soft: rgba(45, 212, 191, 0.12);
+/* ── Section ── */
+.section{padding:2rem 0;border-bottom:1px solid var(--border)}
+.section:last-child{border-bottom:none}
+.section-title{font-size:1.2rem;font-weight:700;letter-spacing:-0.01em;margin-bottom:0.3rem}
+.section-desc{color:var(--text-2);font-size:0.88rem;margin-bottom:1.2rem;max-width:650px}
 
-  /* States */
-  --danger:      #f87171;
-  --danger-soft: rgba(248, 113, 113, 0.14);
-  --ok:          #4ade80;
-  --ok-soft:     rgba(74, 222, 128, 0.14);
-  --warn:        #fbbf24;
-  --warn-soft:   rgba(251, 191, 36, 0.14);
+.hidden-section{display:none}
+.hidden-section.visible{display:block;animation:fadeUp 300ms ease-out}
+@keyframes fadeUp{from{opacity:0;transform:translateY(16px)}to{opacity:1;transform:translateY(0)}}
 
-  --sans: "Geist", "Inter", system-ui, -apple-system, "Segoe UI", Roboto, sans-serif;
-  --mono: "JetBrains Mono", "Geist Mono", ui-monospace, "SF Mono", Consolas, monospace;
+/* ── Forms ── */
+input[type="text"],input[type="number"],select,textarea{
+  font-family:var(--sans);font-size:0.88rem;width:100%;
+  padding:0.5rem 0;border:none;border-bottom:1px solid var(--border);
+  background:transparent;color:var(--text);transition:border-color 120ms;
 }
+input:focus,select:focus,textarea:focus{outline:none;border-bottom-color:var(--accent)}
+input::placeholder{color:var(--dim)}
+input.mono,.topology-input,.trajectory-input{font-family:var(--mono);font-size:0.82rem}
+select{
+  appearance:none;
+  background-image:url("data:image/svg+xml,%3Csvg width='10' height='6' viewBox='0 0 10 6' fill='none' xmlns='http://www.w3.org/2000/svg'%3E%3Cpath d='M1 1L5 5L9 1' stroke='%236c7281' stroke-width='1.5' stroke-linecap='round' stroke-linejoin='round'/%3E%3C/svg%3E");
+  background-repeat:no-repeat;background-position:right 0 center;padding-right:1.5rem;
+}
+input[type="checkbox"]{width:16px;height:16px;accent-color:var(--accent);cursor:pointer}
+input[type="color"]{width:32px;height:28px;padding:0;border:none;border-bottom:1px solid var(--border);border-radius:0;cursor:pointer}
+label{display:block;font-size:0.82rem;color:var(--text-2);font-weight:500}
+label>input,label>select{margin-top:0.2rem}
+label small{color:var(--dim);font-size:0.76rem;font-weight:400}
+.grid-2,.grid-3{display:grid;gap:0.75rem 1rem}
+.grid-2{grid-template-columns:1fr 1fr}
+.grid-3{grid-template-columns:1fr 1fr 1fr}
+@media(max-width:768px){.grid-2,.grid-3{grid-template-columns:1fr}}
 
-/* ============================================================
-   Base
-   ============================================================ */
-* { box-sizing: border-box; }
-html, body { height: 100%; margin: 0; }
-body {
-  background: var(--aurora-1);
-  color: var(--text);
-  font-family: var(--sans);
-  font-size: 15px;
-  line-height: 1.5;
-  -webkit-font-smoothing: antialiased;
-  text-rendering: optimizeLegibility;
+/* ── Buttons ── */
+button{
+  font-family:var(--sans);font-size:0.86rem;font-weight:600;
+  padding:0.5rem 1.1rem;border-radius:0;border:none;
+  background:transparent;color:var(--text);cursor:pointer;
+  transition:all 100ms;display:inline-flex;align-items:center;gap:0.4rem;
 }
+button:hover{background:var(--accent-soft)}
+button:active{transform:translateY(1px)}
+button:focus-visible{outline:2px solid var(--accent);outline-offset:2px}
+button.primary{background:var(--accent);color:#fff}
+button.primary:hover{background:var(--accent-hover)}
+button.ghost{color:var(--muted)}
+button.ghost:hover{background:rgba(0,0,0,0.04);color:var(--text)}
+button.danger-ghost{color:var(--danger)}
+button.danger-ghost:hover{background:var(--danger-soft)}
+button.sm{padding:0.3rem 0.7rem;font-size:0.8rem}
+button.lg{padding:0.65rem 1.6rem;font-size:0.92rem}
 
-/* ============================================================
-   Aurora layer (animated)
-   ============================================================ */
-.aurora {
-  position: fixed; inset: -20%; z-index: -1; overflow: hidden;
-  background-color: var(--aurora-1);
-  filter: blur(80px) saturate(150%);
-}
-.aurora::before, .aurora::after {
-  content: ""; position: absolute; inset: 0;
-  background:
-    radial-gradient(circle at 20% 20%, var(--aurora-2) 0%, transparent 40%),
-    radial-gradient(circle at 80% 30%, var(--aurora-3) 0%, transparent 35%),
-    radial-gradient(circle at 50% 80%, var(--aurora-2) 0%, transparent 45%);
-  animation: aurora-drift 32s ease-in-out infinite alternate;
-}
-.aurora::after {
-  animation-duration: 22s;
-  animation-direction: alternate-reverse;
-  opacity: 0.6;
-  filter: hue-rotate(20deg);
-}
-@keyframes aurora-drift {
-  from { transform: translate3d(-3%, -2%, 0) scale(1); }
-  to   { transform: translate3d(4%, 3%, 0) scale(1.08); }
-}
-@media (prefers-reduced-motion: reduce) {
-  .aurora::before, .aurora::after { animation: none; }
-}
+/* ── System row ── */
+.sys-row{padding:1rem 0;border-bottom:1px solid var(--border)}
+.sys-row:last-child{border-bottom:none}
+.sys-row-head{display:flex;align-items:center;gap:0.6rem;margin-bottom:0.8rem;flex-wrap:wrap}
+.sys-row-head input[type="text"]{max-width:200px;font-weight:600}
+.file-group{margin-bottom:0.5rem}
+.file-group label{font-size:0.76rem;font-weight:600;color:var(--muted);text-transform:uppercase;letter-spacing:0.04em;margin-bottom:0.2rem;display:block}
+.file-group small{font-weight:400;text-transform:none;letter-spacing:0;color:var(--dim)}
+.path-row{display:flex;gap:0.35rem;align-items:stretch}
+.path-row input{flex:1;min-width:0}
+.path-row button{white-space:nowrap}
+.sys-stale{color:var(--danger);font-size:0.82rem;background:var(--danger-soft);padding:0.4rem 0.7rem;margin-top:0.5rem}
+.prepare-status{font-family:var(--mono);font-size:0.8rem;color:var(--muted);margin-top:0.3rem}
+.prepare-status.error{color:var(--danger)}
 
-/* ============================================================
-   Layout
-   ============================================================ */
-nav.topbar {
-  display: flex; justify-content: space-between; align-items: center;
-  max-width: 960px; margin: 0 auto;
-  padding: 2rem 1.5rem 1.2rem;
-}
-nav.topbar .brand {
-  display: flex; flex-direction: column; gap: 0.15rem;
-}
-nav.topbar .brand-name {
-  font-size: 1.55rem; font-weight: 700; letter-spacing: -0.02em;
-  background: linear-gradient(135deg, #fff 0%, var(--accent) 100%);
-  -webkit-background-clip: text; background-clip: text;
-  color: transparent;
-}
-nav.topbar .brand-tag { color: var(--muted); font-size: 0.86rem; }
-nav.topbar .brand-version {
-  display: inline-block; margin-left: 0.5rem;
-  font-family: var(--mono); font-size: 0.7rem;
-  padding: 0.05rem 0.45rem;
-  border: 1px solid var(--glass-border);
-  border-radius: 999px; color: var(--accent); vertical-align: 2px;
-}
+/* ── File browser ── */
+.file-browser{margin-top:0.4rem;background:#f6f7f9;font-family:var(--mono);font-size:0.82rem;overflow:hidden}
+.fb-header{display:flex;justify-content:space-between;align-items:center;padding:0.4rem 0.7rem;border-bottom:1px solid var(--border)}
+.fb-path{font-weight:500;overflow-wrap:anywhere;color:var(--accent)}
+.fb-entries{max-height:260px;overflow-y:auto}
+.fb-entry{display:flex;gap:0.5rem;align-items:center;padding:0.3rem 0.7rem;cursor:pointer}
+.fb-entry:hover{background:var(--accent-soft)}
+.fb-entry .fb-icon{width:1.2em;text-align:center}
+.fb-entry .fb-size{margin-left:auto;color:var(--dim);font-size:0.75rem}
+.fb-empty{padding:0.7rem;color:var(--muted);font-style:italic}
+.fb-go{display:flex;gap:0.3rem;padding:0.4rem 0.7rem;border-top:1px solid var(--border)}
+.fb-go input{flex:1;font-size:0.82rem}
+.fb-go button{padding:0.25rem 0.6rem;font-size:0.8rem}
 
-main {
-  max-width: 960px; margin: 0 auto;
-  padding: 0 1.5rem 5rem;
-  display: flex; flex-direction: column; gap: 1.6rem;
-}
+/* ── Pills ── */
+.pills{display:flex;flex-wrap:wrap;gap:0.35rem;margin-top:0.6rem}
+.pill{font-size:0.76rem;font-family:var(--mono);padding:0.15rem 0.55rem;border-left:3px solid var(--dim);color:var(--muted)}
+.pill.ok{border-left-color:var(--ok);color:var(--ok)}
+.pill.stale{border-left-color:var(--danger);color:var(--danger)}
 
-/* ============================================================
-   Glass card
-   ============================================================ */
-.glass-card {
-  position: relative;
-  background: var(--glass-bg);
-  -webkit-backdrop-filter: var(--glass-blur);
-          backdrop-filter: var(--glass-blur);
-  border: 1px solid var(--glass-border);
-  border-radius: 16px;
-  box-shadow: var(--glass-shadow);
-  padding: 1.4rem 1.6rem;
-  animation: card-in 350ms ease-out both;
-}
-.glass-card::before {
-  content: ""; position: absolute; inset: 0;
-  border-radius: inherit; pointer-events: none;
-  background: linear-gradient(180deg, rgba(255,255,255,0.06) 0%, transparent 30%);
-}
-.glass-card > * { position: relative; }    /* keep content above ::before */
-.glass-card.nested {
-  background: var(--glass-bg-2);
-  padding: 1rem 1.15rem;
-  border-radius: 12px;
-}
-.glass-card.nested-2 {
-  background: var(--glass-bg-3);
-  padding: 0.75rem 1rem;
-  border-radius: 10px;
-}
-@keyframes card-in {
-  from { opacity: 0; transform: translateY(8px); }
-  to   { opacity: 1; transform: translateY(0);   }
-}
-@media (prefers-reduced-motion: reduce) {
-  .glass-card { animation: none; }
-}
+/* ── Analysis blocks ── */
+.analysis-block{border-bottom:1px solid var(--border);background:transparent}
+.analysis-block:last-child{border-bottom:none}
+.analysis-block.expanded{background:var(--accent-soft)}
+.analysis-block>header{display:flex;align-items:center;gap:0.65rem;padding:0.6rem 0;cursor:pointer;user-select:none}
+.analysis-block>header .title{font-weight:600;font-size:0.9rem}
+.analysis-block>header .desc{color:var(--muted);font-size:0.82rem}
+.analysis-block .params{display:none;padding:0.7rem 0 1rem;border-top:1px solid rgba(0,0,0,0.06)}
+.analysis-block.expanded .params{display:block}
+details{background:#f6f7f9;padding:0.5rem 0.75rem;margin-top:0.6rem}
+details>summary{cursor:pointer;font-weight:500;font-size:0.84rem;color:var(--muted);list-style:none}
+details>summary::before{content:"\25B8";display:inline-block;margin-right:0.4rem;transition:transform 120ms}
+details[open]>summary::before{transform:rotate(90deg)}
+details>div{margin-top:0.5rem}
 
-.section-head {
-  display: flex; align-items: center; gap: 0.8rem;
-  margin-bottom: 1rem;
-}
-.section-num {
-  width: 28px; height: 28px;
-  display: inline-flex; align-items: center; justify-content: center;
-  border-radius: 8px;
-  background: var(--accent-soft);
-  color: var(--accent);
-  font-weight: 600; font-size: 0.85rem;
-  border: 1px solid var(--accent);
-  box-shadow: 0 0 14px var(--accent-glow);
-}
-.section-title { font-size: 1.15rem; font-weight: 600; letter-spacing: -0.01em; }
-.section-head .spacer { flex: 1; }
-.section-desc {
-  color: var(--muted); font-size: 0.9rem;
-  margin: -0.3rem 0 1rem 2.6rem;
-}
+/* ── Run bar ── */
+.run-bar{display:flex;align-items:center;gap:0.8rem;flex-wrap:wrap;padding:1rem 0 0;margin-top:0.5rem}
+.run-bar .toggle{display:inline-flex;align-items:center;gap:0.3rem;color:var(--muted);font-size:0.82rem}
+.run-status{font-family:var(--mono);font-size:0.82rem;color:var(--muted)}
+.run-status.error{color:var(--danger)}
 
-/* ============================================================
-   Buttons
-   ============================================================ */
-button, .btn {
-  font-family: var(--sans); font-size: 0.92rem; font-weight: 500;
-  padding: 0.5rem 1rem;
-  border-radius: 8px;
-  border: 1px solid var(--glass-border);
-  background: var(--glass-bg-2);
-  color: var(--text);
-  cursor: pointer;
-  transition: background 140ms, border-color 140ms, transform 80ms;
-}
-button:hover, .btn:hover {
-  background: var(--glass-bg-3);
-  border-color: var(--glass-border-strong);
-}
-button:active, .btn:active { transform: translateY(1px); }
-button:focus-visible, .btn:focus-visible {
-  outline: 2px solid var(--accent);
-  outline-offset: 2px;
-}
-button.primary {
-  background: linear-gradient(135deg, var(--accent) 0%, var(--accent-2) 100%);
-  color: #052e2b;
-  border: 1px solid var(--accent);
-  box-shadow: 0 0 18px var(--accent-glow);
-  font-weight: 600;
-}
-button.primary:hover {
-  filter: brightness(1.08);
-  border-color: var(--accent);
-}
-button.ghost {
-  background: transparent;
-  border-color: var(--glass-border);
-  color: var(--muted);
-}
-button.ghost:hover { color: var(--text); }
-button.danger {
-  background: var(--danger-soft);
-  border-color: var(--danger);
-  color: var(--danger);
-}
-button.danger:hover { background: rgba(248, 113, 113, 0.22); }
-button.small {
-  padding: 0.25rem 0.6rem; font-size: 0.82rem;
-}
+/* ── Results ── */
+.result-block{padding:1.2rem 0;border-bottom:1px solid var(--border)}
+.result-block:last-child{border-bottom:none}
+.result-block h4{font-size:0.78rem;font-weight:700;text-transform:uppercase;letter-spacing:0.08em;color:var(--accent);margin-bottom:0.5rem}
+.result-block img{display:block;max-width:100%;margin-top:0.5rem;cursor:zoom-in;background:#fff}
+.result-block p{font-size:0.86rem;color:var(--text-2);margin:0.25rem 0}
+.result-block a{color:var(--accent);text-decoration:none}
+.result-block a:hover{text-decoration:underline}
+.result-block strong{color:var(--text)}
+.result-block pre.json{font-family:var(--mono);font-size:0.8rem;max-height:220px;overflow:auto;background:#f6f7f9;padding:0.6rem 0.8rem}
 
-/* ============================================================
-   Form controls
-   ============================================================ */
-input[type="text"], input[type="number"], select, textarea {
-  font-family: var(--sans);
-  font-size: 0.92rem;
-  width: 100%;
-  padding: 0.5rem 0.7rem;
-  border-radius: 8px;
-  background: rgba(15, 23, 42, 0.55);
-  border: 1px solid var(--glass-border);
-  color: var(--text);
-  transition: border-color 120ms, background 120ms;
-}
-input[type="text"]:focus, input[type="number"]:focus,
-select:focus, textarea:focus {
-  outline: none;
-  border-color: var(--accent);
-  background: rgba(15, 23, 42, 0.75);
-  box-shadow: 0 0 0 3px var(--accent-soft);
-}
-input[type="text"]::placeholder, input[type="number"]::placeholder {
-  color: var(--dim);
-}
-input.mono, input[type="text"].mono, .topology-input, .trajectory-input {
-  font-family: var(--mono); font-size: 0.88rem;
-}
-select {
-  appearance: none;
-  background-image: linear-gradient(45deg, transparent 50%, var(--muted) 50%),
-                    linear-gradient(135deg, var(--muted) 50%, transparent 50%);
-  background-position: calc(100% - 18px) 50%, calc(100% - 12px) 50%;
-  background-size: 6px 6px;
-  background-repeat: no-repeat;
-  padding-right: 2rem;
-}
-select option { background: #1e293b; color: var(--text); }
-input[type="checkbox"] {
-  width: 16px; height: 16px;
-  accent-color: var(--accent);
-  cursor: pointer;
-  margin: 0;
-}
-input[type="color"] {
-  width: 34px; height: 28px; padding: 0; border-radius: 6px; cursor: pointer;
-  border: 1px solid var(--glass-border); background: transparent;
-}
-input[type="file"] {
-  font-family: var(--sans); font-size: 0.88rem;
-  color: var(--muted);
-  background: transparent; border: 1px dashed var(--glass-border);
-  padding: 0.4rem 0.6rem; border-radius: 8px;
-}
-input[type="file"]::file-selector-button {
-  background: var(--glass-bg-3);
-  color: var(--text);
-  border: 1px solid var(--glass-border);
-  border-radius: 6px;
-  padding: 0.3rem 0.7rem;
-  margin-right: 0.6rem;
-  font-family: var(--sans); font-size: 0.85rem;
-  cursor: pointer;
-}
-input[type="file"]::file-selector-button:hover { background: var(--glass-border-strong); }
+/* ── Progress ── */
+.progress-wrap{margin-bottom:1rem}
+.progress-bar-outer{height:3px;background:#e5e7eb;overflow:hidden;margin-top:0.4rem}
+.progress-bar-inner{height:100%;background:var(--accent);transition:width 300ms ease;width:0%}
+.progress-text{font-family:var(--mono);font-size:0.82rem;color:var(--muted);margin-top:0.35rem}
 
-label { display: block; font-size: 0.88rem; color: var(--muted); }
-label > input, label > select { margin-top: 0.25rem; }
-label small { color: var(--dim); font-size: 0.78rem; }
+/* ── Lightbox ── */
+.lightbox{position:fixed;inset:0;z-index:1000;background:rgba(0,0,0,0.75);backdrop-filter:blur(6px);display:none;align-items:center;justify-content:center;padding:2rem}
+.lightbox.open{display:flex}
+.lightbox img{max-width:95vw;max-height:90vh;box-shadow:0 12px 40px rgba(0,0,0,0.5);background:#fff}
+.lightbox .lb-close{position:absolute;top:1rem;right:1.2rem;background:rgba(0,0,0,0.5);color:#fff;width:36px;height:36px;font-size:1.3rem}
 
-.grid-2, .grid-3 { display: grid; gap: 0.7rem 1rem; }
-.grid-2 { grid-template-columns: 1fr 1fr; }
-.grid-3 { grid-template-columns: 1fr 1fr 1fr; }
-@media (max-width: 720px) {
-  .grid-2, .grid-3 { grid-template-columns: 1fr; }
-}
+/* ── Status strip ── */
+.status-strip{position:fixed;left:0;right:0;bottom:0;height:26px;display:flex;align-items:center;justify-content:center;font-family:var(--mono);font-size:0.76rem;background:#fff;border-top:1px solid var(--border);color:var(--dim);z-index:100}
+.status-strip[data-level="ok"]{color:var(--ok)}
+.status-strip[data-level="error"]{color:var(--danger);background:var(--danger-soft)}
+.status-strip[data-level="running"]{color:var(--accent)}
 
-/* ============================================================
-   Systems section
-   ============================================================ */
-.systems-list { display: flex; flex-direction: column; gap: 0.7rem; }
-
-.system-row { /* nested glass card */
-  display: flex; flex-direction: column; gap: 0.55rem;
-}
-.system-row > header {
-  display: flex; justify-content: space-between; align-items: center;
-  gap: 0.5rem; flex-wrap: wrap;
-}
-.system-row .label-input {
-  font-weight: 600; max-width: 14rem;
-}
-.system-row .system-stale {
-  color: var(--danger); font-size: 0.85rem;
-  background: var(--danger-soft);
-  padding: 0.4rem 0.7rem; border-radius: 8px;
-  border: 1px solid rgba(248, 113, 113, 0.3);
-}
-
-.path-row { display: flex; gap: 0.4rem; align-items: stretch; }
-.path-row input[type="text"] { flex: 1; min-width: 0; }
-.path-row button { white-space: nowrap; }
-
-.prepare-status {
-  font-family: var(--mono); font-size: 0.82rem; color: var(--muted);
-}
-.prepare-status.error { color: var(--danger); }
-
-/* ============================================================
-   File browser popover
-   ============================================================ */
-.file-browser {
-  margin-top: 0.45rem;
-  background: var(--glass-bg-3);
-  border: 1px solid var(--glass-border);
-  border-radius: 10px;
-  font-family: var(--mono); font-size: 0.85rem;
-  overflow: hidden;
-}
-.fb-header {
-  display: flex; justify-content: space-between; align-items: center;
-  padding: 0.4rem 0.7rem;
-  border-bottom: 1px solid var(--glass-border);
-  background: rgba(0, 0, 0, 0.2);
-}
-.fb-path { font-weight: 500; overflow-wrap: anywhere; color: var(--accent); }
-.fb-entries { max-height: 280px; overflow-y: auto; }
-.fb-entry {
-  display: flex; gap: 0.5rem; align-items: center;
-  padding: 0.3rem 0.7rem;
-  cursor: pointer;
-  border-bottom: 1px solid transparent;
-}
-.fb-entry:hover {
-  background: var(--accent-soft);
-  color: var(--text);
-}
-.fb-entry .fb-icon { width: 1.2em; text-align: center; }
-.fb-entry .fb-size {
-  margin-left: auto; color: var(--dim); font-size: 0.78rem;
-}
-.fb-empty { padding: 0.7rem; color: var(--muted); font-style: italic; }
-.fb-go {
-  display: flex; gap: 0.3rem;
-  padding: 0.4rem 0.7rem;
-  border-top: 1px solid var(--glass-border);
-}
-.fb-go input { flex: 1; font-size: 0.85rem; }
-.fb-go button { padding: 0.25rem 0.6rem; font-size: 0.82rem; }
-
-/* ============================================================
-   Analysis blocks
-   ============================================================ */
-.analyses-list { display: flex; flex-direction: column; gap: 0.55rem; }
-
-.analysis-block {
-  background: var(--glass-bg-2);
-  border: 1px solid var(--glass-border);
-  border-radius: 12px;
-  transition: border-color 160ms, background 160ms;
-}
-.analysis-block:hover { border-color: var(--glass-border-strong); }
-.analysis-block.expanded {
-  border-color: var(--accent);
-  box-shadow: 0 0 18px var(--accent-glow);
-}
-.analysis-block > header {
-  display: flex; align-items: center; gap: 0.7rem;
-  padding: 0.65rem 0.95rem;
-  cursor: pointer;
-  user-select: none;
-}
-.analysis-block > header input[type="checkbox"] {
-  transform: scale(1.1);
-}
-.analysis-block > header .title {
-  font-weight: 600; color: var(--text);
-}
-.analysis-block > header .desc {
-  color: var(--muted); font-size: 0.86rem;
-}
-.analysis-block .params {
-  display: none;
-  padding: 0.6rem 0.95rem 0.95rem;
-  border-top: 1px solid var(--glass-border);
-}
-.analysis-block.expanded .params { display: block; }
-
-details {
-  background: rgba(0,0,0,0.18);
-  border: 1px solid var(--glass-border);
-  padding: 0.55rem 0.8rem;
-  border-radius: 8px;
-  margin-top: 0.7rem;
-}
-details > summary {
-  cursor: pointer; font-weight: 500; font-size: 0.88rem;
-  color: var(--muted);
-  list-style: none;
-}
-details > summary::before {
-  content: "▸"; display: inline-block; margin-right: 0.45rem;
-  transition: transform 120ms;
-}
-details[open] > summary::before { transform: rotate(90deg); }
-details > div { margin-top: 0.6rem; }
-
-/* Run row at bottom of analyses card */
-.run-row {
-  display: flex; align-items: center; gap: 0.7rem;
-  margin-top: 1rem;
-  flex-wrap: wrap;
-}
-.run-row .ai-toggle {
-  display: inline-flex; align-items: center; gap: 0.35rem;
-  color: var(--muted); font-size: 0.88rem;
-  margin: 0;
-}
-.run-row .run-status {
-  font-family: var(--mono); font-size: 0.85rem; color: var(--muted);
-}
-.run-row .run-status.error { color: var(--danger); }
-
-/* ============================================================
-   Results section
-   ============================================================ */
-#results-area { display: flex; flex-direction: column; gap: 0.9rem; margin-top: 0.4rem; }
-#results-area:empty::before {
-  content: "Run an analysis to see results here.";
-  color: var(--dim); font-size: 0.92rem; font-style: italic;
-}
-
-.result-block {
-  background: var(--glass-bg-2);
-  border: 1px solid var(--glass-border);
-  border-radius: 12px;
-  padding: 0.9rem 1.1rem;
-}
-.result-block h4 {
-  margin: 0 0 0.6rem 0;
-  font-size: 0.95rem;
-  letter-spacing: 0.08em;
-  text-transform: uppercase;
-  color: var(--accent);
-}
-.result-block img {
-  display: block; max-width: 100%;
-  border: 1px solid var(--glass-border);
-  border-radius: 10px;
-  margin-top: 0.45rem;
-  cursor: zoom-in;
-  background: #fff;        /* matplotlib PNGs are usually white-bg */
-}
-.result-block p {
-  margin: 0.3rem 0;
-  font-size: 0.88rem; color: var(--muted);
-}
-.result-block a {
-  color: var(--accent); text-decoration: none;
-  border-bottom: 1px solid transparent;
-  transition: border-color 120ms;
-}
-.result-block a:hover { border-bottom-color: var(--accent); }
-.result-block strong { color: var(--text); }
-.result-block pre.json {
-  font-family: var(--mono); font-size: 0.82rem;
-  max-height: 240px; overflow: auto;
-  background: rgba(0, 0, 0, 0.35);
-  border: 1px solid var(--glass-border);
-  padding: 0.6rem 0.8rem; border-radius: 8px;
-  color: var(--text);
-}
-
-/* Lightbox for full-size plot view */
-.lightbox {
-  position: fixed; inset: 0; z-index: 1000;
-  background: rgba(2, 6, 23, 0.78);
-  -webkit-backdrop-filter: blur(8px);
-          backdrop-filter: blur(8px);
-  display: none; align-items: center; justify-content: center;
-  padding: 2rem;
-}
-.lightbox.open { display: flex; }
-.lightbox img {
-  max-width: 95vw; max-height: 90vh;
-  border-radius: 12px;
-  box-shadow: 0 12px 60px rgba(0,0,0,0.6);
-  background: #fff;
-}
-.lightbox .lb-close {
-  position: absolute; top: 1rem; right: 1.2rem;
-  background: var(--glass-bg-3); color: var(--text);
-  border: 1px solid var(--glass-border);
-  width: 36px; height: 36px; border-radius: 999px;
-  font-size: 1.3rem; line-height: 1;
-}
-
-/* ============================================================
-   Status pills + strip
-   ============================================================ */
-.pills { display: flex; flex-wrap: wrap; gap: 0.4rem; margin-top: 0.8rem; }
-.pill {
-  display: inline-flex; align-items: center; gap: 0.35rem;
-  font-size: 0.82rem; font-family: var(--mono);
-  padding: 0.18rem 0.65rem;
-  border-radius: 999px;
-  background: var(--glass-bg-3);
-  border: 1px solid var(--glass-border);
-  color: var(--muted);
-}
-.pill.ok    { background: var(--ok-soft);    border-color: var(--ok);    color: var(--ok);    }
-.pill.stale { background: var(--danger-soft);border-color: var(--danger);color: var(--danger);}
-
-.status-strip {
-  position: fixed; left: 0; right: 0; bottom: 0;
-  height: 28px;
-  display: flex; align-items: center; justify-content: center;
-  font-family: var(--mono); font-size: 0.82rem;
-  background: rgba(2, 6, 23, 0.65);
-  -webkit-backdrop-filter: blur(12px);
-          backdrop-filter: blur(12px);
-  border-top: 1px solid var(--glass-border);
-  color: var(--muted);
-  z-index: 50;
-  transition: color 200ms, background 200ms;
-}
-.status-strip[data-level="ok"]      { color: var(--ok); }
-.status-strip[data-level="error"]   { color: var(--danger); background: rgba(80, 0, 0, 0.55); }
-.status-strip[data-level="running"] { color: var(--accent); }
-
-footer.pagefoot {
-  text-align: center; color: var(--dim); font-size: 0.82rem;
-  margin: 2rem auto 4rem; max-width: 960px; padding: 0 1.5rem;
-}
-footer.pagefoot code { font-family: var(--mono); color: var(--muted); }
-
-/* Generic helpers */
-.muted { color: var(--muted); }
-.error { color: var(--danger); }
-.spacer { flex: 1; }
-.row { display: flex; align-items: center; gap: 0.5rem; flex-wrap: wrap; }
-
-/* Mobile */
-@media (max-width: 720px) {
-  nav.topbar, main { padding-left: 1rem; padding-right: 1rem; }
-  .glass-card { padding: 1rem 1.1rem; }
-  .section-desc { margin-left: 0; }
-  .section-num { width: 24px; height: 24px; font-size: 0.78rem; }
-  .system-row > header { flex-direction: column; align-items: stretch; }
+.spacer{flex:1}
+@media(max-width:768px){
+  .hero-body h1{font-size:2rem}
+  .hero-body{padding:1.8rem 1.2rem 2rem}
+  .hero-nav{padding:0.6rem 1.2rem}
+  .content{padding:0 1rem 4rem}
 }
 </style>
 </head>
 <body>
 
-<div class="aurora" aria-hidden="true"></div>
-
-<nav class="topbar">
-  <div class="brand">
-    <div>
-      <span class="brand-name">Post_MD</span>
-      <span class="brand-version">v0.1</span>
-    </div>
-    <div class="brand-tag">Rapid MD trajectory analysis — PCA · clustering · RMSD/RMSF/Rg/SASA/H-bond</div>
+<!-- ━━━ Hero Banner ━━━ -->
+<div class="hero">
+  <div class="hero-bg" aria-hidden="true">
+    <svg viewBox="0 0 1200 260" preserveAspectRatio="none" xmlns="http://www.w3.org/2000/svg">
+      <g stroke="rgba(148,163,184,0.12)" stroke-width="0.5" fill="none">
+        <line x1="0" y1="50" x2="1200" y2="50"/><line x1="0" y1="100" x2="1200" y2="100"/>
+        <line x1="0" y1="150" x2="1200" y2="150"/><line x1="0" y1="200" x2="1200" y2="200"/>
+        <line x1="200" y1="0" x2="200" y2="260"/><line x1="400" y1="0" x2="400" y2="260"/>
+        <line x1="600" y1="0" x2="600" y2="260"/><line x1="800" y1="0" x2="800" y2="260"/>
+        <line x1="1000" y1="0" x2="1000" y2="260"/>
+      </g>
+      <polyline fill="none" stroke="#3b82f6" stroke-width="2" opacity="0.6" points="0,180 30,165 60,170 90,155 120,145 150,140 180,130 210,135 240,125 270,123 300,120 330,127 360,118 390,115 420,120 450,112 480,108 510,105 540,110 570,103 600,106 630,100 660,103 690,98 720,96 750,100 780,94 810,96 840,92 870,94 900,90 930,92 960,88 990,90 1020,86 1050,88 1080,85 1110,87 1140,84 1170,86 1200,83"/>
+      <polyline fill="none" stroke="#06b6d4" stroke-width="2" opacity="0.5" points="0,200 40,160 80,190 120,140 160,180 200,120 240,200 280,170 320,210 360,130 400,220 440,150 480,190 520,115 560,170 600,140 640,200 680,128 720,180 760,150 800,210 840,135 880,190 920,160 960,220 1000,140 1040,180 1080,155 1120,195 1160,165 1200,190"/>
+      <polyline fill="none" stroke="#22c55e" stroke-width="1.5" opacity="0.4" points="0,150 50,148 100,152 150,145 200,148 250,140 300,143 350,138 400,142 450,135 500,138 550,132 600,135 650,130 700,133 750,128 800,131 850,126 900,129 950,124 1000,127 1050,122 1100,125 1150,120 1200,123"/>
+      <polyline fill="none" stroke="#f59e0b" stroke-width="1.5" opacity="0.35" points="0,70 40,75 80,65 120,80 160,60 200,72 240,58 280,78 320,62 360,70 400,55 440,68 480,60 520,75 560,52 600,65 640,70 680,58 720,72 760,48 800,62 840,70 880,55 920,68 960,50 1000,63 1040,72 1080,58 1120,65 1160,60 1200,62"/>
+      <g transform="translate(40, 35)" opacity="0.3">
+        <line x1="0" y1="0" x2="20" y2="0" stroke="#3b82f6" stroke-width="2"/><text x="25" y="3.5" fill="#94a3b8" font-size="8" font-family="Inter,sans-serif">RMSD</text>
+        <line x1="0" y1="13" x2="20" y2="13" stroke="#06b6d4" stroke-width="2"/><text x="25" y="16.5" fill="#94a3b8" font-size="8" font-family="Inter,sans-serif">RMSF</text>
+        <line x1="0" y1="26" x2="20" y2="26" stroke="#22c55e" stroke-width="1.5"/><text x="25" y="29.5" fill="#94a3b8" font-size="8" font-family="Inter,sans-serif">Rg</text>
+        <line x1="0" y1="39" x2="20" y2="39" stroke="#f59e0b" stroke-width="1.5"/><text x="25" y="42.5" fill="#94a3b8" font-size="8" font-family="Inter,sans-serif">H-bond</text>
+      </g>
+      <g transform="translate(920,25)" opacity="0.15" stroke="#94a3b8" stroke-width="1" fill="none">
+        <path d="M0,50 L20,32 L45,45 L65,22 L90,37 L110,14 L135,28 L155,8 L180,22 L200,5"/>
+        <path d="M10,68 L30,55 L55,63 L75,40 L100,55 L120,32 L145,45 L165,28 L190,42 L210,18"/>
+        <circle cx="0" cy="50" r="2.5" fill="rgba(148,163,184,0.25)"/><circle cx="45" cy="45" r="2.5" fill="rgba(148,163,184,0.25)"/>
+        <circle cx="90" cy="37" r="2.5" fill="rgba(148,163,184,0.25)"/><circle cx="135" cy="28" r="2.5" fill="rgba(148,163,184,0.25)"/>
+        <circle cx="180" cy="22" r="2.5" fill="rgba(148,163,184,0.25)"/>
+      </g>
+    </svg>
   </div>
-</nav>
-
-<main>
-
-<!-- ===========================================================
-     1. Systems
-     =========================================================== -->
-<section class="glass-card" id="systems-card">
-  <div class="section-head">
-    <span class="section-num">1</span>
-    <h2 class="section-title">Systems</h2>
+  <nav class="hero-nav">
+    <div class="brand"><i>P</i> Post MD</div>
     <span class="spacer"></span>
-    <button id="btn-add-system" class="ghost small">+ Add system</button>
+    <span class="ver">v0.1.0-dev</span>
+  </nav>
+  <div class="hero-body">
+    <h1>MD Trajectory Analysis</h1>
+    <p>Rapid analysis of molecular dynamics trajectories. PCA, structural clustering, RMSD, RMSF, Rg, SASA, and hydrogen bond analysis.</p>
   </div>
-  <p class="section-desc">
-    Register one or more trajectories you want to compare (e.g. WT, Mutant 1, Mutant 2). Overlay-style analyses (RMSD / RMSF / Rg / SASA / H-bond) plot all systems on one graph. Browse to a file on disk — uploads aren't required for files already on your machine.
-  </p>
+</div>
 
-  <div id="systems-list" class="systems-list"></div>
+<div class="content">
 
-  <div class="run-row" style="margin-top: 1rem;">
-    <button id="btn-save-systems" class="primary">Save systems</button>
-    <button id="btn-reset" class="ghost">Reset workspace</button>
+<!-- ━━━ Upload Trajectory Files ━━━ -->
+<div class="section" id="upload-section">
+  <h2 class="section-title">Upload Trajectory Files</h2>
+  <p class="section-desc">Point to topology and trajectory files on disk. Add multiple systems to compare (WT, Mutant 1, etc.).</p>
+  <div id="systems-list"></div>
+  <button id="btn-add-system" class="ghost" style="margin-top:0.5rem">+ Add another system</button>
+  <div class="pills" id="status-pills"></div>
+  <div style="display:flex;align-items:center;gap:0.8rem;margin-top:1.2rem;flex-wrap:wrap">
+    <button id="btn-save-systems" class="primary lg">Upload &amp; continue</button>
+    <button id="btn-reset" class="danger-ghost sm">Reset</button>
     <span id="systems-status" class="run-status"></span>
   </div>
-  <div class="pills" id="status-pills"></div>
-</section>
+</div>
 
-<!-- ===========================================================
-     2. Analyses
-     =========================================================== -->
-<section class="glass-card" id="analyses-card">
-  <div class="section-head">
-    <span class="section-num">2</span>
-    <h2 class="section-title">Analyses</h2>
+<!-- ━━━ Choose Analysis (hidden until upload) ━━━ -->
+<div class="section hidden-section" id="analysis-section">
+  <h2 class="section-title">Choose Analysis</h2>
+  <p class="section-desc">Select analyses to run across all uploaded systems.</p>
+
+  <div class="analysis-block" data-analysis="info">
+    <header><input type="checkbox" data-toggle="info"><span class="title">Info</span><span class="desc">&mdash; atom / residue / bond / frame counts</span></header>
   </div>
-  <p class="section-desc">
-    Tick every analysis you want, fill its parameters, then hit <strong>Run analysis</strong>. All ticked analyses run across every saved system in a single batch.
-  </p>
+  <div class="analysis-block" data-analysis="rmsd">
+    <header><input type="checkbox" data-toggle="rmsd"><span class="title">RMSD</span><span class="desc">&mdash; per-frame RMSD vs reference</span></header>
+    <div class="params"><div class="grid-2">
+      <label>Atom selection<input type="text" name="selection" value="name CA" data-tab="rmsd"></label>
+      <label>Reference frame<input type="number" name="reference" value="0" min="0" data-tab="rmsd"></label>
+      <label>Output<select name="output_ext" data-tab="rmsd"><option value="dat">.dat</option><option value="xvg">.xvg</option><option value="csv">.csv</option></select></label>
+      <label>Time unit<select name="time_unit" data-tab="rmsd"><option value="ns">ns</option><option value="ps">ps</option><option value="fs">fs</option><option value="us">us</option></select></label>
+    </div><details><summary>Plot customisation</summary><div class="grid-3">
+      <label>Title<input type="text" name="title" data-tab="rmsd"></label><label>X-axis<input type="text" name="xlabel" data-tab="rmsd"></label><label>Y-axis<input type="text" name="ylabel" data-tab="rmsd"></label>
+      <label>Color<input type="text" name="color" placeholder="#1f77b4" data-tab="rmsd"></label><label>Line width<input type="number" name="linewidth" value="1.6" step="0.1" data-tab="rmsd"></label><label>Legend<input type="text" name="legend_label" data-tab="rmsd"></label>
+      <label>X min<input type="number" step="any" name="xmin" data-tab="rmsd"></label><label>X max<input type="number" step="any" name="xmax" data-tab="rmsd"></label><label>Y min<input type="number" step="any" name="ymin" data-tab="rmsd"></label>
+      <label>Y max<input type="number" step="any" name="ymax" data-tab="rmsd"></label><label>Fig size<input type="text" name="figsize" placeholder="7.5x4.5" data-tab="rmsd"></label><label>DPI<input type="number" name="dpi" value="150" data-tab="rmsd"></label>
+      <label>Font size<input type="number" name="font_size" value="12" data-tab="rmsd"></label><label><input type="checkbox" name="no_grid" data-tab="rmsd"> Hide grid</label><label><input type="checkbox" name="no_plot" data-tab="rmsd"> Data only</label>
+    </div></details></div>
+  </div>
+  <div class="analysis-block" data-analysis="rmsf">
+    <header><input type="checkbox" data-toggle="rmsf"><span class="title">RMSF</span><span class="desc">&mdash; per-residue or per-atom fluctuation</span></header>
+    <div class="params"><div class="grid-2">
+      <label>Atom selection<input type="text" name="selection" value="protein" data-tab="rmsf"></label>
+      <label>Output<select name="output_ext" data-tab="rmsf"><option value="dat">.dat</option><option value="xvg">.xvg</option><option value="csv">.csv</option></select></label>
+      <label><input type="checkbox" name="per_atom" data-tab="rmsf"> Per-atom <small>(default: per-residue)</small></label>
+    </div><details><summary>Plot customisation</summary><div class="grid-3">
+      <label>Title<input type="text" name="title" data-tab="rmsf"></label><label>X-axis<input type="text" name="xlabel" data-tab="rmsf"></label><label>Y-axis<input type="text" name="ylabel" data-tab="rmsf"></label>
+      <label>Color<input type="text" name="color" data-tab="rmsf"></label><label>Line width<input type="number" name="linewidth" value="1.6" step="0.1" data-tab="rmsf"></label><label>Legend<input type="text" name="legend_label" data-tab="rmsf"></label>
+      <label>X min<input type="number" step="any" name="xmin" data-tab="rmsf"></label><label>X max<input type="number" step="any" name="xmax" data-tab="rmsf"></label><label>Y min<input type="number" step="any" name="ymin" data-tab="rmsf"></label>
+      <label>Y max<input type="number" step="any" name="ymax" data-tab="rmsf"></label><label>Fig size<input type="text" name="figsize" placeholder="7.5x4.5" data-tab="rmsf"></label><label>DPI<input type="number" name="dpi" value="150" data-tab="rmsf"></label>
+      <label>Font size<input type="number" name="font_size" value="12" data-tab="rmsf"></label><label><input type="checkbox" name="no_grid" data-tab="rmsf"> Hide grid</label><label><input type="checkbox" name="no_plot" data-tab="rmsf"> Data only</label>
+    </div></details></div>
+  </div>
+  <div class="analysis-block" data-analysis="rg">
+    <header><input type="checkbox" data-toggle="rg"><span class="title">Rg</span><span class="desc">&mdash; radius of gyration per frame</span></header>
+    <div class="params"><div class="grid-2">
+      <label>Atom selection<input type="text" name="selection" value="protein" data-tab="rg"></label>
+      <label>Output<select name="output_ext" data-tab="rg"><option value="dat">.dat</option><option value="xvg">.xvg</option><option value="csv">.csv</option></select></label>
+      <label>Time unit<select name="time_unit" data-tab="rg"><option value="ns">ns</option><option value="ps">ps</option><option value="fs">fs</option><option value="us">us</option></select></label>
+    </div><details><summary>Plot customisation</summary><div class="grid-3">
+      <label>Title<input type="text" name="title" data-tab="rg"></label><label>X-axis<input type="text" name="xlabel" data-tab="rg"></label><label>Y-axis<input type="text" name="ylabel" data-tab="rg"></label>
+      <label>Color<input type="text" name="color" data-tab="rg"></label><label>Line width<input type="number" name="linewidth" value="1.6" step="0.1" data-tab="rg"></label><label>Legend<input type="text" name="legend_label" data-tab="rg"></label>
+      <label>X min<input type="number" step="any" name="xmin" data-tab="rg"></label><label>X max<input type="number" step="any" name="xmax" data-tab="rg"></label><label>Y min<input type="number" step="any" name="ymin" data-tab="rg"></label>
+      <label>Y max<input type="number" step="any" name="ymax" data-tab="rg"></label><label>Fig size<input type="text" name="figsize" data-tab="rg"></label><label>DPI<input type="number" name="dpi" value="150" data-tab="rg"></label>
+      <label>Font size<input type="number" name="font_size" value="12" data-tab="rg"></label><label><input type="checkbox" name="no_grid" data-tab="rg"> Hide grid</label><label><input type="checkbox" name="no_plot" data-tab="rg"> Data only</label>
+    </div></details></div>
+  </div>
+  <div class="analysis-block" data-analysis="sasa">
+    <header><input type="checkbox" data-toggle="sasa"><span class="title">SASA</span><span class="desc">&mdash; solvent-accessible surface area</span></header>
+    <div class="params"><div class="grid-3">
+      <label>Atom selection<input type="text" name="selection" value="protein" data-tab="sasa"></label>
+      <label>Probe radius (A)<input type="number" step="0.1" name="probe_radius" value="1.4" data-tab="sasa"></label>
+      <label>Sphere pts<input type="number" name="n_sphere_points" value="96" min="20" max="512" data-tab="sasa"></label>
+      <label>Output<select name="output_ext" data-tab="sasa"><option value="dat">.dat</option><option value="xvg">.xvg</option><option value="csv">.csv</option></select></label>
+      <label>Time unit<select name="time_unit" data-tab="sasa"><option value="ns">ns</option><option value="ps">ps</option><option value="fs">fs</option><option value="us">us</option></select></label>
+    </div><details><summary>Plot customisation</summary><div class="grid-3">
+      <label>Title<input type="text" name="title" data-tab="sasa"></label><label>X-axis<input type="text" name="xlabel" data-tab="sasa"></label><label>Y-axis<input type="text" name="ylabel" data-tab="sasa"></label>
+      <label>Color<input type="text" name="color" data-tab="sasa"></label><label>Line width<input type="number" name="linewidth" value="1.6" step="0.1" data-tab="sasa"></label><label>Legend<input type="text" name="legend_label" data-tab="sasa"></label>
+      <label>X min<input type="number" step="any" name="xmin" data-tab="sasa"></label><label>X max<input type="number" step="any" name="xmax" data-tab="sasa"></label><label>Y min<input type="number" step="any" name="ymin" data-tab="sasa"></label>
+      <label>Y max<input type="number" step="any" name="ymax" data-tab="sasa"></label><label>Fig size<input type="text" name="figsize" placeholder="7.5x4.5" data-tab="sasa"></label><label>DPI<input type="number" name="dpi" value="150" data-tab="sasa"></label>
+      <label>Font size<input type="number" name="font_size" value="12" data-tab="sasa"></label><label><input type="checkbox" name="no_grid" data-tab="sasa"> Hide grid</label><label><input type="checkbox" name="no_plot" data-tab="sasa"> Data only</label>
+    </div></details></div>
+  </div>
+  <div class="analysis-block" data-analysis="hbond">
+    <header><input type="checkbox" data-toggle="hbond"><span class="title">H-bond</span><span class="desc">&mdash; per-frame hydrogen bond count</span></header>
+    <div class="params"><div class="grid-3">
+      <label>Atom selection<input type="text" name="selection" value="protein" data-tab="hbond"></label>
+      <label>D-A cutoff (A)<input type="number" step="0.1" name="d_a_cutoff" value="3.5" data-tab="hbond"></label>
+      <label>D-H-A angle (deg)<input type="number" step="1" name="angle_cutoff" value="150" data-tab="hbond"></label>
+      <label>Output<select name="output_ext" data-tab="hbond"><option value="dat">.dat</option><option value="xvg">.xvg</option><option value="csv">.csv</option></select></label>
+      <label>Time unit<select name="time_unit" data-tab="hbond"><option value="ns">ns</option><option value="ps">ps</option><option value="fs">fs</option><option value="us">us</option></select></label>
+    </div><details><summary>Plot customisation</summary><div class="grid-3">
+      <label>Title<input type="text" name="title" data-tab="hbond"></label><label>X-axis<input type="text" name="xlabel" data-tab="hbond"></label><label>Y-axis<input type="text" name="ylabel" data-tab="hbond"></label>
+      <label>Color<input type="text" name="color" data-tab="hbond"></label><label>Line width<input type="number" name="linewidth" value="1.6" step="0.1" data-tab="hbond"></label><label>Legend<input type="text" name="legend_label" data-tab="hbond"></label>
+      <label>X min<input type="number" step="any" name="xmin" data-tab="hbond"></label><label>X max<input type="number" step="any" name="xmax" data-tab="hbond"></label><label>Y min<input type="number" step="any" name="ymin" data-tab="hbond"></label>
+      <label>Y max<input type="number" step="any" name="ymax" data-tab="hbond"></label><label>Fig size<input type="text" name="figsize" placeholder="7.5x4.5" data-tab="hbond"></label><label>DPI<input type="number" name="dpi" value="150" data-tab="hbond"></label>
+      <label>Font size<input type="number" name="font_size" value="12" data-tab="hbond"></label><label><input type="checkbox" name="no_grid" data-tab="hbond"> Hide grid</label><label><input type="checkbox" name="no_plot" data-tab="hbond"> Data only</label>
+    </div></details></div>
+  </div>
+  <div class="analysis-block" data-analysis="pca">
+    <header><input type="checkbox" data-toggle="pca"><span class="title">PCA</span><span class="desc">&mdash; Cartesian PCA per system</span></header>
+    <div class="params"><div class="grid-2">
+      <label>Atom selection<input type="text" name="selection" value="name CA" data-tab="pca"></label>
+      <label>Components<input type="number" name="n_components" value="10" min="1" data-tab="pca"></label>
+    </div><details><summary>Plot customisation</summary><div class="grid-3">
+      <label>Title<input type="text" name="title" data-tab="pca"></label><label>X label<input type="text" name="xlabel" placeholder="PC1" data-tab="pca"></label><label>Y label<input type="text" name="ylabel" placeholder="PC2" data-tab="pca"></label>
+      <label>Scree color<input type="text" name="color" placeholder="steelblue" data-tab="pca"></label><label>Cumul. color<input type="text" name="accent_color" placeholder="darkorange" data-tab="pca"></label><label>Scatter cmap<input type="text" name="cmap" placeholder="viridis" data-tab="pca"></label>
+      <label>Line width<input type="number" name="linewidth" value="1.6" step="0.1" data-tab="pca"></label><label>Fig size<input type="text" name="figsize" placeholder="12x4.5" data-tab="pca"></label><label>DPI<input type="number" name="dpi" value="150" data-tab="pca"></label>
+      <label>Font size<input type="number" name="font_size" value="12" data-tab="pca"></label><label><input type="checkbox" name="no_grid" data-tab="pca"> Hide grid</label><label><input type="checkbox" name="no_plot" data-tab="pca"> Data only</label>
+    </div></details></div>
+  </div>
+  <div class="analysis-block" data-analysis="cluster">
+    <header><input type="checkbox" data-toggle="cluster"><span class="title">Cluster</span><span class="desc">&mdash; K-means on PCA projections</span></header>
+    <div class="params"><div class="grid-3">
+      <label>k<input type="number" name="k" value="5" min="1" data-tab="cluster"></label>
+      <label>PCs<input type="number" name="n_pcs" value="10" min="1" data-tab="cluster"></label>
+      <label>Seed<input type="number" name="seed" value="0" data-tab="cluster"></label>
+      <label>Output<select name="output_ext" data-tab="cluster"><option value="dat">.dat</option><option value="xvg">.xvg</option><option value="csv">.csv</option></select></label>
+      <label><input type="checkbox" name="rep_pdb" data-tab="cluster" checked> Rep PDB</label>
+    </div><details><summary>Plot customisation</summary><div class="grid-3">
+      <label>Title<input type="text" name="title" data-tab="cluster"></label><label>X label<input type="text" name="xlabel" placeholder="PC1" data-tab="cluster"></label><label>Y label<input type="text" name="ylabel" placeholder="PC2" data-tab="cluster"></label>
+      <label>Center color<input type="text" name="color" placeholder="black" data-tab="cluster"></label><label>Rep color<input type="text" name="accent_color" placeholder="red" data-tab="cluster"></label><label>Cmap<input type="text" name="cmap" placeholder="tab10" data-tab="cluster"></label>
+      <label>Fig size<input type="text" name="figsize" placeholder="7.5x6" data-tab="cluster"></label><label>DPI<input type="number" name="dpi" value="150" data-tab="cluster"></label><label>Font size<input type="number" name="font_size" value="12" data-tab="cluster"></label>
+      <label><input type="checkbox" name="no_grid" data-tab="cluster"> Hide grid</label><label><input type="checkbox" name="no_plot" data-tab="cluster"> Data only</label>
+    </div></details></div>
+  </div>
 
-  <div class="analyses-list">
-
-    <!-- INFO -->
-    <div class="analysis-block" data-analysis="info">
-      <header>
-        <input type="checkbox" data-toggle="info">
-        <span class="title">Info</span>
-        <span class="desc">— atom / residue / bond / frame counts per system.</span>
-      </header>
-    </div>
-
-    <!-- RMSD -->
-    <div class="analysis-block" data-analysis="rmsd">
-      <header>
-        <input type="checkbox" data-toggle="rmsd">
-        <span class="title">RMSD</span>
-        <span class="desc">— per-frame RMSD vs a reference frame after Kabsch alignment.</span>
-      </header>
-      <div class="params">
-        <div class="grid-2">
-          <label>Atom selection<br><input type="text" name="selection" value="name CA" data-tab="rmsd"></label>
-          <label>Reference frame<br><input type="number" name="reference" value="0" min="0" data-tab="rmsd"></label>
-          <label>Output format<br>
-            <select name="output_ext" data-tab="rmsd">
-              <option value="dat">.dat (cpptraj)</option>
-              <option value="xvg">.xvg (GROMACS xmgrace)</option>
-              <option value="csv">.csv</option>
-            </select>
-          </label>
-          <label>Time unit<br>
-            <select name="time_unit" data-tab="rmsd">
-              <option value="ps">ps</option><option value="ns">ns</option>
-              <option value="fs">fs</option><option value="us">μs</option>
-            </select>
-          </label>
-        </div>
-        <details>
-          <summary>Plot customisation</summary>
-          <div class="grid-3">
-            <label>Title<br><input type="text" name="title" data-tab="rmsd"></label>
-            <label>X-axis label<br><input type="text" name="xlabel" data-tab="rmsd"></label>
-            <label>Y-axis label<br><input type="text" name="ylabel" data-tab="rmsd"></label>
-            <label>Line color<br><input type="text" name="color" placeholder="#1f77b4 (single-system)" data-tab="rmsd"></label>
-            <label>Line width<br><input type="number" name="linewidth" value="1.6" step="0.1" data-tab="rmsd"></label>
-            <label>Legend label<br><input type="text" name="legend_label" data-tab="rmsd"></label>
-            <label>X min<br><input type="number" step="any" name="xmin" data-tab="rmsd"></label>
-            <label>X max<br><input type="number" step="any" name="xmax" data-tab="rmsd"></label>
-            <label>Y min<br><input type="number" step="any" name="ymin" data-tab="rmsd"></label>
-            <label>Y max<br><input type="number" step="any" name="ymax" data-tab="rmsd"></label>
-            <label>Figure size<br><input type="text" name="figsize" placeholder="7.5x4.5" data-tab="rmsd"></label>
-            <label>DPI<br><input type="number" name="dpi" value="150" data-tab="rmsd"></label>
-            <label>Font size<br><input type="number" name="font_size" value="12" data-tab="rmsd"></label>
-            <label><input type="checkbox" name="no_grid" data-tab="rmsd"> Hide grid</label>
-            <label><input type="checkbox" name="no_plot" data-tab="rmsd"> Skip plot (data only)</label>
-          </div>
-        </details>
-      </div>
-    </div>
-
-    <!-- RMSF -->
-    <div class="analysis-block" data-analysis="rmsf">
-      <header>
-        <input type="checkbox" data-toggle="rmsf">
-        <span class="title">RMSF</span>
-        <span class="desc">— per-residue (default) or per-atom fluctuation about the mean structure.</span>
-      </header>
-      <div class="params">
-        <div class="grid-2">
-          <label>Atom selection<br><input type="text" name="selection" value="protein" data-tab="rmsf"></label>
-          <label>Output format<br>
-            <select name="output_ext" data-tab="rmsf">
-              <option value="dat">.dat</option><option value="xvg">.xvg</option><option value="csv">.csv</option>
-            </select>
-          </label>
-          <label><input type="checkbox" name="per_atom" data-tab="rmsf"> Per-atom <small>(default: per-residue, mass-weighted mean)</small></label>
-        </div>
-        <details>
-          <summary>Plot customisation</summary>
-          <div class="grid-3">
-            <label>Title<br><input type="text" name="title" data-tab="rmsf"></label>
-            <label>X-axis label<br><input type="text" name="xlabel" data-tab="rmsf"></label>
-            <label>Y-axis label<br><input type="text" name="ylabel" data-tab="rmsf"></label>
-            <label>Line color<br><input type="text" name="color" data-tab="rmsf"></label>
-            <label>Line width<br><input type="number" name="linewidth" value="1.6" step="0.1" data-tab="rmsf"></label>
-            <label>Legend label<br><input type="text" name="legend_label" data-tab="rmsf"></label>
-            <label>X min<br><input type="number" step="any" name="xmin" data-tab="rmsf"></label>
-            <label>X max<br><input type="number" step="any" name="xmax" data-tab="rmsf"></label>
-            <label>Y min<br><input type="number" step="any" name="ymin" data-tab="rmsf"></label>
-            <label>Y max<br><input type="number" step="any" name="ymax" data-tab="rmsf"></label>
-            <label>Figure size<br><input type="text" name="figsize" placeholder="7.5x4.5" data-tab="rmsf"></label>
-            <label>DPI<br><input type="number" name="dpi" value="150" data-tab="rmsf"></label>
-            <label>Font size<br><input type="number" name="font_size" value="12" data-tab="rmsf"></label>
-            <label><input type="checkbox" name="no_grid" data-tab="rmsf"> Hide grid</label>
-            <label><input type="checkbox" name="no_plot" data-tab="rmsf"> Skip plot</label>
-          </div>
-        </details>
-      </div>
-    </div>
-
-    <!-- Rg -->
-    <div class="analysis-block" data-analysis="rg">
-      <header>
-        <input type="checkbox" data-toggle="rg">
-        <span class="title">Rg</span>
-        <span class="desc">— mass-weighted radius of gyration per frame.</span>
-      </header>
-      <div class="params">
-        <div class="grid-2">
-          <label>Atom selection<br><input type="text" name="selection" value="protein" data-tab="rg"></label>
-          <label>Output format<br>
-            <select name="output_ext" data-tab="rg">
-              <option value="dat">.dat</option><option value="xvg">.xvg</option><option value="csv">.csv</option>
-            </select>
-          </label>
-          <label>Time unit<br>
-            <select name="time_unit" data-tab="rg">
-              <option value="ps">ps</option><option value="ns">ns</option>
-              <option value="fs">fs</option><option value="us">μs</option>
-            </select>
-          </label>
-        </div>
-        <details>
-          <summary>Plot customisation</summary>
-          <div class="grid-3">
-            <label>Title<br><input type="text" name="title" data-tab="rg"></label>
-            <label>X-axis label<br><input type="text" name="xlabel" data-tab="rg"></label>
-            <label>Y-axis label<br><input type="text" name="ylabel" data-tab="rg"></label>
-            <label>Line color<br><input type="text" name="color" data-tab="rg"></label>
-            <label>Line width<br><input type="number" name="linewidth" value="1.6" step="0.1" data-tab="rg"></label>
-            <label>Legend label<br><input type="text" name="legend_label" data-tab="rg"></label>
-            <label>X min<br><input type="number" step="any" name="xmin" data-tab="rg"></label>
-            <label>X max<br><input type="number" step="any" name="xmax" data-tab="rg"></label>
-            <label>Y min<br><input type="number" step="any" name="ymin" data-tab="rg"></label>
-            <label>Y max<br><input type="number" step="any" name="ymax" data-tab="rg"></label>
-            <label>Figure size<br><input type="text" name="figsize" data-tab="rg"></label>
-            <label>DPI<br><input type="number" name="dpi" value="150" data-tab="rg"></label>
-            <label>Font size<br><input type="number" name="font_size" value="12" data-tab="rg"></label>
-            <label><input type="checkbox" name="no_grid" data-tab="rg"> Hide grid</label>
-            <label><input type="checkbox" name="no_plot" data-tab="rg"> Skip plot</label>
-          </div>
-        </details>
-      </div>
-    </div>
-
-    <!-- SASA -->
-    <div class="analysis-block" data-analysis="sasa">
-      <header>
-        <input type="checkbox" data-toggle="sasa">
-        <span class="title">SASA</span>
-        <span class="desc">— Shrake-Rupley solvent-accessible surface area per frame.</span>
-      </header>
-      <div class="params">
-        <div class="grid-3">
-          <label>Atom selection<br><input type="text" name="selection" value="protein" data-tab="sasa"></label>
-          <label>Probe radius (Å) <small>1.4 = water</small><br><input type="number" step="0.1" name="probe_radius" value="1.4" data-tab="sasa"></label>
-          <label>Sphere points <small>96 = fast / 256 = pub-grade</small><br><input type="number" name="n_sphere_points" value="96" min="20" max="512" data-tab="sasa"></label>
-          <label>Output format<br>
-            <select name="output_ext" data-tab="sasa">
-              <option value="dat">.dat</option><option value="xvg">.xvg</option><option value="csv">.csv</option>
-            </select>
-          </label>
-          <label>Time unit<br>
-            <select name="time_unit" data-tab="sasa">
-              <option value="ps">ps</option><option value="ns">ns</option>
-              <option value="fs">fs</option><option value="us">μs</option>
-            </select>
-          </label>
-        </div>
-        <details>
-          <summary>Plot customisation</summary>
-          <div class="grid-3">
-            <label>Title<br><input type="text" name="title" data-tab="sasa"></label>
-            <label>X-axis label<br><input type="text" name="xlabel" data-tab="sasa"></label>
-            <label>Y-axis label<br><input type="text" name="ylabel" data-tab="sasa"></label>
-            <label>Line color<br><input type="text" name="color" data-tab="sasa"></label>
-            <label>Line width<br><input type="number" name="linewidth" value="1.6" step="0.1" data-tab="sasa"></label>
-            <label>Legend label<br><input type="text" name="legend_label" data-tab="sasa"></label>
-            <label>X min<br><input type="number" step="any" name="xmin" data-tab="sasa"></label>
-            <label>X max<br><input type="number" step="any" name="xmax" data-tab="sasa"></label>
-            <label>Y min<br><input type="number" step="any" name="ymin" data-tab="sasa"></label>
-            <label>Y max<br><input type="number" step="any" name="ymax" data-tab="sasa"></label>
-            <label>Figure size<br><input type="text" name="figsize" placeholder="7.5x4.5" data-tab="sasa"></label>
-            <label>DPI<br><input type="number" name="dpi" value="150" data-tab="sasa"></label>
-            <label>Font size<br><input type="number" name="font_size" value="12" data-tab="sasa"></label>
-            <label><input type="checkbox" name="no_grid" data-tab="sasa"> Hide grid</label>
-            <label><input type="checkbox" name="no_plot" data-tab="sasa"> Skip plot</label>
-          </div>
-        </details>
-      </div>
-    </div>
-
-    <!-- H-bond -->
-    <div class="analysis-block" data-analysis="hbond">
-      <header>
-        <input type="checkbox" data-toggle="hbond">
-        <span class="title">H-bond</span>
-        <span class="desc">— per-frame H-bond count using geometric D-H-A criteria.</span>
-      </header>
-      <div class="params">
-        <div class="grid-3">
-          <label>Atom selection<br><input type="text" name="selection" value="protein" data-tab="hbond"></label>
-          <label>D-A distance cutoff (Å)<br><input type="number" step="0.1" name="d_a_cutoff" value="3.5" data-tab="hbond"></label>
-          <label>D-H-A angle cutoff (°)<br><input type="number" step="1" name="angle_cutoff" value="150" data-tab="hbond"></label>
-          <label>Output format<br>
-            <select name="output_ext" data-tab="hbond">
-              <option value="dat">.dat</option><option value="xvg">.xvg</option><option value="csv">.csv</option>
-            </select>
-          </label>
-          <label>Time unit<br>
-            <select name="time_unit" data-tab="hbond">
-              <option value="ps">ps</option><option value="ns">ns</option>
-              <option value="fs">fs</option><option value="us">μs</option>
-            </select>
-          </label>
-        </div>
-        <details>
-          <summary>Plot customisation</summary>
-          <div class="grid-3">
-            <label>Title<br><input type="text" name="title" data-tab="hbond"></label>
-            <label>X-axis label<br><input type="text" name="xlabel" data-tab="hbond"></label>
-            <label>Y-axis label<br><input type="text" name="ylabel" data-tab="hbond"></label>
-            <label>Line color<br><input type="text" name="color" data-tab="hbond"></label>
-            <label>Line width<br><input type="number" name="linewidth" value="1.6" step="0.1" data-tab="hbond"></label>
-            <label>Legend label<br><input type="text" name="legend_label" data-tab="hbond"></label>
-            <label>X min<br><input type="number" step="any" name="xmin" data-tab="hbond"></label>
-            <label>X max<br><input type="number" step="any" name="xmax" data-tab="hbond"></label>
-            <label>Y min<br><input type="number" step="any" name="ymin" data-tab="hbond"></label>
-            <label>Y max<br><input type="number" step="any" name="ymax" data-tab="hbond"></label>
-            <label>Figure size<br><input type="text" name="figsize" placeholder="7.5x4.5" data-tab="hbond"></label>
-            <label>DPI<br><input type="number" name="dpi" value="150" data-tab="hbond"></label>
-            <label>Font size<br><input type="number" name="font_size" value="12" data-tab="hbond"></label>
-            <label><input type="checkbox" name="no_grid" data-tab="hbond"> Hide grid</label>
-            <label><input type="checkbox" name="no_plot" data-tab="hbond"> Skip plot</label>
-          </div>
-        </details>
-      </div>
-    </div>
-
-    <!-- PCA -->
-    <div class="analysis-block" data-analysis="pca">
-      <header>
-        <input type="checkbox" data-toggle="pca">
-        <span class="title">PCA</span>
-        <span class="desc">— Cartesian PCA per system (saved as <code>pca[_label].npz</code>).</span>
-      </header>
-      <div class="params">
-        <div class="grid-2">
-          <label>Atom selection<br><input type="text" name="selection" value="name CA" data-tab="pca"></label>
-          <label>Number of components<br><input type="number" name="n_components" value="10" min="1" data-tab="pca"></label>
-        </div>
-        <details>
-          <summary>Plot customisation</summary>
-          <div class="grid-3">
-            <label>Title<br><input type="text" name="title" data-tab="pca"></label>
-            <label>X label (scatter)<br><input type="text" name="xlabel" placeholder="PC1" data-tab="pca"></label>
-            <label>Y label (scatter)<br><input type="text" name="ylabel" placeholder="PC2" data-tab="pca"></label>
-            <label>Scree color<br><input type="text" name="color" placeholder="steelblue" data-tab="pca"></label>
-            <label>Cumulative color<br><input type="text" name="accent_color" placeholder="darkorange" data-tab="pca"></label>
-            <label>Scatter cmap<br><input type="text" name="cmap" placeholder="viridis" data-tab="pca"></label>
-            <label>Line width<br><input type="number" name="linewidth" value="1.6" step="0.1" data-tab="pca"></label>
-            <label>Figure size<br><input type="text" name="figsize" placeholder="12x4.5" data-tab="pca"></label>
-            <label>DPI<br><input type="number" name="dpi" value="150" data-tab="pca"></label>
-            <label>Font size<br><input type="number" name="font_size" value="12" data-tab="pca"></label>
-            <label><input type="checkbox" name="no_grid" data-tab="pca"> Hide grid</label>
-            <label><input type="checkbox" name="no_plot" data-tab="pca"> Skip plot</label>
-          </div>
-        </details>
-      </div>
-    </div>
-
-    <!-- Cluster -->
-    <div class="analysis-block" data-analysis="cluster">
-      <header>
-        <input type="checkbox" data-toggle="cluster">
-        <span class="title">Cluster</span>
-        <span class="desc">— K-means on each system's PCA projections (PCA must be ticked in the same batch, or already on disk).</span>
-      </header>
-      <div class="params">
-        <div class="grid-3">
-          <label>k (clusters)<br><input type="number" name="k" value="5" min="1" data-tab="cluster"></label>
-          <label>Number of PCs<br><input type="number" name="n_pcs" value="10" min="1" data-tab="cluster"></label>
-          <label>Random seed<br><input type="number" name="seed" value="0" data-tab="cluster"></label>
-          <label>Output format<br>
-            <select name="output_ext" data-tab="cluster">
-              <option value="dat">.dat</option><option value="xvg">.xvg</option><option value="csv">.csv</option>
-            </select>
-          </label>
-          <label><input type="checkbox" name="rep_pdb" data-tab="cluster" checked> Write rep-frame PDB</label>
-        </div>
-        <details>
-          <summary>Plot customisation</summary>
-          <div class="grid-3">
-            <label>Title<br><input type="text" name="title" data-tab="cluster"></label>
-            <label>X label<br><input type="text" name="xlabel" placeholder="PC1" data-tab="cluster"></label>
-            <label>Y label<br><input type="text" name="ylabel" placeholder="PC2" data-tab="cluster"></label>
-            <label>Center color<br><input type="text" name="color" placeholder="black" data-tab="cluster"></label>
-            <label>Rep color<br><input type="text" name="accent_color" placeholder="red" data-tab="cluster"></label>
-            <label>Cluster cmap<br><input type="text" name="cmap" placeholder="tab10" data-tab="cluster"></label>
-            <label>Figure size<br><input type="text" name="figsize" placeholder="7.5x6" data-tab="cluster"></label>
-            <label>DPI<br><input type="number" name="dpi" value="150" data-tab="cluster"></label>
-            <label>Font size<br><input type="number" name="font_size" value="12" data-tab="cluster"></label>
-            <label><input type="checkbox" name="no_grid" data-tab="cluster"> Hide grid</label>
-            <label><input type="checkbox" name="no_plot" data-tab="cluster"> Skip plot</label>
-          </div>
-        </details>
-      </div>
-    </div>
-
-  </div><!-- /.analyses-list -->
-
-  <div class="run-row">
-    <button id="btn-run-batch" class="primary">▶ Run analysis</button>
-    <button id="btn-cancel-run" class="ghost" hidden title="Stop the in-flight analysis. Multiprocessing workers are terminated immediately, prep loops exit at the next chunk.">■ Stop</button>
-    <label class="ai-toggle" title="Wraps PBC-split molecules back together and centres the anchor at the box centre, cpptraj-style. Turn off if the trajectory is already imaged.">
-      <input type="checkbox" id="opt-autoimage" checked>
-      <span>Autoimage</span>
-    </label>
-    <label class="ai-toggle" title="Number of CPU cores used for parallel analyses (SASA, H-bond). Saved across server restarts. Leave blank for auto (80% of detected cores).">
-      <span>Workers:</span>
-      <input type="number" id="opt-workers" min="1" style="width: 5rem;" placeholder="auto">
-      <span id="workers-hint" class="muted" style="font-size: 0.82rem;"></span>
-    </label>
+  <div class="run-bar">
+    <button id="btn-run-batch" class="primary lg">Run analysis</button>
+    <button id="btn-cancel-run" class="danger-ghost" hidden>Stop</button>
+    <label class="toggle"><input type="checkbox" id="opt-autoimage" checked> Autoimage</label>
+    <label class="toggle">Workers: <input type="number" id="opt-workers" min="1" style="width:4.5rem" placeholder="auto"><span id="workers-hint" style="font-size:0.76rem;color:var(--dim);margin-left:0.3rem"></span></label>
     <span class="spacer"></span>
     <span id="run-status" class="run-status"></span>
   </div>
-</section>
-
-<!-- ===========================================================
-     3. Results
-     =========================================================== -->
-<section class="glass-card" id="results-card">
-  <div class="section-head">
-    <span class="section-num">3</span>
-    <h2 class="section-title">Results</h2>
-    <span class="spacer"></span>
-    <button id="btn-refresh-results" class="ghost small">↻ Refresh</button>
-  </div>
-  <div id="results-area"></div>
-</section>
-
-</main>
-
-<footer class="pagefoot">
-  Post_MD — pre-alpha. Same engine as the <code>post-md</code> CLI.
-</footer>
-
-<!-- lightbox -->
-<div class="lightbox" id="lightbox" aria-hidden="true">
-  <button class="lb-close" id="lb-close" aria-label="Close">×</button>
-  <img id="lb-img" alt="">
 </div>
 
-<!-- status strip -->
+<!-- ━━━ Results (hidden until run) ━━━ -->
+<div class="section hidden-section" id="results-section">
+  <div style="display:flex;align-items:center;gap:0.8rem;margin-bottom:0.8rem">
+    <h2 class="section-title" style="margin:0">Results</h2>
+    <span class="spacer"></span>
+    <button id="btn-cancel-results" class="danger-ghost" hidden>Stop</button>
+    <button id="btn-refresh-results" class="ghost sm">Refresh</button>
+  </div>
+  <div id="progress-area" class="progress-wrap" style="display:none">
+    <strong style="font-size:0.86rem" id="progress-label">Preparing...</strong>
+    <div class="progress-bar-outer"><div class="progress-bar-inner" id="progress-bar"></div></div>
+    <div class="progress-text" id="progress-text"></div>
+  </div>
+  <div id="results-area"></div>
+</div>
+
+</div><!-- /.content -->
+
+<div class="lightbox" id="lightbox" aria-hidden="true">
+  <button class="lb-close" id="lb-close" aria-label="Close">&times;</button>
+  <img id="lb-img" alt="">
+</div>
 <div class="status-strip" id="status-strip" data-level="info">Ready.</div>
 
 <script>
-const $ = (sel, root = document) => root.querySelector(sel);
-const $$ = (sel, root = document) => Array.from(root.querySelectorAll(sel));
+const $=s=>document.querySelector(s);
+const $$=s=>[...document.querySelectorAll(s)];
+let state={systems:[],outputs:[]};
 
-let state = { systems: [], outputs: [] };
+function setGlobalStatus(m,l){const e=$('#status-strip');e.textContent=m||'';e.dataset.level=l||'info'}
 
-// ---- global status strip ----
-function setGlobalStatus(msg, level) {
-  const el = $('#status-strip');
-  el.textContent = msg || '';
-  el.dataset.level = level || 'info';
-}
+/* ── Reveal helpers ── */
+function showSection(id){const el=$('#'+id);el.classList.add('visible');setTimeout(()=>el.scrollIntoView({behavior:'smooth',block:'start'}),50)}
 
-// ---- status fetch + render ----
-async function refreshStatus() {
-  const res = await fetch('/api/status');
-  state = await res.json();
-  renderStatus();
-}
-
-function renderStatus() {
-  const pills = $('#status-pills');
-  pills.innerHTML = '';
-  if (!state.systems.length) {
-    const span = document.createElement('span');
-    span.className = 'pill';
-    span.textContent = 'no systems registered';
-    pills.appendChild(span);
-    return;
-  }
-  for (const s of state.systems) {
-    const ok = s.topology && s.trajectory;
-    const span = document.createElement('span');
-    span.className = 'pill ' + (ok ? 'ok' : (s.topology_stale || s.trajectory_stale ? 'stale' : ''));
-    if (ok) {
-      span.textContent = `${s.label}: ${s.topology} + ${s.trajectory}`;
-    } else if (s.topology_stale || s.trajectory_stale) {
-      span.textContent = `${s.label}: STALE`;
-      span.title = (s.topology_stale || '') + ' / ' + (s.trajectory_stale || '');
-    } else {
-      span.textContent = `${s.label}: incomplete`;
-    }
-    pills.appendChild(span);
+/* ── Status ── */
+async function refreshStatus(){const r=await fetch('/api/status');state=await r.json();renderStatus()}
+function renderStatus(){
+  const p=$('#status-pills');p.innerHTML='';
+  if(!state.systems.length){p.innerHTML='<span class="pill">no systems</span>';return}
+  for(const s of state.systems){
+    const ok=s.topology&&s.trajectory;const sp=document.createElement('span');
+    sp.className='pill '+(ok?'ok':(s.topology_stale||s.trajectory_stale?'stale':''));
+    sp.textContent=ok?s.label+': ready':(s.topology_stale||s.trajectory_stale?s.label+': STALE':s.label+': incomplete');
+    p.appendChild(sp);
   }
 }
 
-// ---- systems list UI ----
-function renderSystems() {
-  const list = $('#systems-list');
-  list.innerHTML = '';
-  if (!state.systems.length) {
-    addSystemRow({ label: 'System 1', topology_path: '', trajectory_path: '' });
-    return;
-  }
-  for (const s of state.systems) addSystemRow(s);
-}
-
-// matplotlib tab10 — pick a new default color per system so overlay plots
-// don't draw both lines in identical blue.
-const TAB10_COLORS = [
-  '#1f77b4', '#ff7f0e', '#2ca02c', '#d62728',
-  '#9467bd', '#8c564b', '#e377c2', '#7f7f7f',
-  '#bcbd22', '#17becf',
-];
-function nextDefaultColor() {
-  const used = $$('#systems-list .system-row .color-input').map(i => (i.value || '').toLowerCase());
-  for (const c of TAB10_COLORS) {
-    if (!used.includes(c.toLowerCase())) return c;
-  }
-  return TAB10_COLORS[used.length % TAB10_COLORS.length];
-}
-
-function addSystemRow(initial) {
-  const list = $('#systems-list');
-  const row = document.createElement('div');
-  row.className = 'system-row glass-card nested';
-  const defaultColor = (initial && initial.color) || nextDefaultColor();
-  row.innerHTML = `
-    <header>
-      <div class="row">
-        <input type="text" class="label-input" placeholder="Label (e.g. WT, Mut1)" value="${(initial && initial.label) || ''}">
-        <label class="row" style="margin:0" title="Plot color for this system in overlay graphs">
-          <input type="color" class="color-input" value="${defaultColor}">
-        </label>
-      </div>
-      <button type="button" class="ghost small btn-remove-system">Remove</button>
-    </header>
-
-    <label>Topology <small>.prmtop / .parm7 / .pdb / .gro</small>
-      <div class="path-row" style="margin-top: 0.25rem;">
-        <input type="text" class="topology-input mono" placeholder="/path/to/system.prmtop" value="${(initial && (initial.original_topology || initial.topology_path)) || ''}">
-        <button type="button" class="btn-browse-topology">Browse…</button>
-      </div>
-      <div class="file-browser browser-topology" style="display:none"></div>
-    </label>
-
-    <label style="margin-top: 0.2rem;">Trajectory <small>.nc / .xtc / .trr / .mdcrd</small>
-      <div class="path-row" style="margin-top: 0.25rem;">
-        <input type="text" class="trajectory-input mono" placeholder="/path/to/prod.nc" value="${(initial && (initial.original_trajectory || initial.trajectory_path)) || ''}">
-        <button type="button" class="btn-browse-trajectory">Browse…</button>
-      </div>
-      <div class="file-browser browser-trajectory" style="display:none"></div>
-    </label>
-
-    <div class="prepare-status"></div>
-  `;
-  if (initial && (initial.topology_stale || initial.trajectory_stale)) {
-    const w = document.createElement('div');
-    w.className = 'system-stale';
-    const parts = [];
-    if (initial.topology_stale)   parts.push(`topology missing: ${initial.topology_stale}`);
-    if (initial.trajectory_stale) parts.push(`trajectory missing: ${initial.trajectory_stale}`);
-    w.textContent = parts.join('  ·  ');
-    row.appendChild(w);
-  }
-  row.querySelector('.btn-remove-system').addEventListener('click', () => row.remove());
-  row.querySelector('.btn-browse-topology').addEventListener('click', () =>
-    toggleBrowser(row, 'topology'));
-  row.querySelector('.btn-browse-trajectory').addEventListener('click', () =>
-    toggleBrowser(row, 'trajectory'));
+/* ── Systems ── */
+function renderSystems(){const l=$('#systems-list');l.innerHTML='';if(!state.systems.length){addSystemRow({label:'System 1'});return}for(const s of state.systems)addSystemRow(s)}
+const TAB10=['#1f77b4','#ff7f0e','#2ca02c','#d62728','#9467bd','#8c564b','#e377c2','#7f7f7f','#bcbd22','#17becf'];
+function nextColor(){const u=$$('#systems-list .sys-row .color-input').map(i=>(i.value||'').toLowerCase());for(const c of TAB10)if(!u.includes(c.toLowerCase()))return c;return TAB10[u.length%TAB10.length]}
+function addSystemRow(init){
+  const list=$('#systems-list'),row=document.createElement('div');row.className='sys-row';
+  const col=(init&&init.color)||nextColor();
+  row.innerHTML=`<div class="sys-row-head"><input type="text" class="label-input" placeholder="Label (WT, Mut1...)" value="${(init&&init.label)||''}"><input type="color" class="color-input" value="${col}" title="Plot color"><span class="spacer" style="flex:1"></span><button type="button" class="danger-ghost sm btn-remove-system">Remove</button></div>
+  <div class="file-group"><label>Topology <small>.prmtop / .parm7 / .pdb / .gro</small></label><div class="path-row"><input type="text" class="topology-input mono" placeholder="/path/to/system.prmtop" value="${(init&&(init.original_topology||init.topology_path))||''}"><button type="button" class="sm btn-browse-topology">Browse</button></div><div class="file-browser browser-topology" style="display:none"></div></div>
+  <div class="file-group"><label>Trajectory <small>.nc / .xtc / .trr / .mdcrd</small></label><div class="path-row"><input type="text" class="trajectory-input mono" placeholder="/path/to/prod.nc" value="${(init&&(init.original_trajectory||init.trajectory_path))||''}"><button type="button" class="sm btn-browse-trajectory">Browse</button></div><div class="file-browser browser-trajectory" style="display:none"></div></div>
+  <div class="prepare-status"></div>`;
+  if(init&&(init.topology_stale||init.trajectory_stale)){const w=document.createElement('div');w.className='sys-stale';const p=[];if(init.topology_stale)p.push('topology: '+init.topology_stale);if(init.trajectory_stale)p.push('trajectory: '+init.trajectory_stale);w.textContent=p.join(' | ');row.appendChild(w)}
+  row.querySelector('.btn-remove-system').onclick=()=>row.remove();
+  row.querySelector('.btn-browse-topology').onclick=()=>toggleBrowser(row,'topology');
+  row.querySelector('.btn-browse-trajectory').onclick=()=>toggleBrowser(row,'trajectory');
   list.appendChild(row);
 }
+function showPrepareStatus(row,msg,e){const el=row.querySelector('.prepare-status');if(!el)return;el.textContent=msg||'';el.className='prepare-status'+(e?' error':'')}
+function formatProgress(s,v){if(!s)return v+'...';const{done,total}=s;if(!total)return v+'... (starting)';return`${v}: ${((done/total)*100).toFixed(1)}%  (${done.toLocaleString()} / ${total.toLocaleString()} frames)`}
+function collectSystems(){return $$('#systems-list .sys-row').map(r=>({label:r.querySelector('.label-input').value.trim(),topology:r.querySelector('.topology-input').value.trim(),trajectory:r.querySelector('.trajectory-input').value.trim(),color:r.querySelector('.color-input').value})).filter(s=>s.topology||s.trajectory)}
+$('#btn-add-system').onclick=()=>addSystemRow({label:'System '+($$('#systems-list .sys-row').length+1)});
 
-function showPrepareStatus(row, msg, isError) {
-  const el = row.querySelector('.prepare-status');
-  if (!el) return;
-  el.textContent = msg || '';
-  el.className = 'prepare-status' + (isError ? ' error' : '');
-}
+/* ── Save → reveal analysis ── */
+$('#btn-save-systems').onclick=async()=>{
+  const sys=collectSystems();if(!sys.length){setSysStatus('Add at least one system.',true);return}
+  setSysStatus('Saving...',false);setGlobalStatus('Saving...','running');
+  try{
+    const r=await fetch('/api/systems',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({systems:sys})});
+    const d=await r.json().catch(()=>({}));
+    if(!r.ok){setSysStatus('Failed: '+(d.detail||r.statusText),true);setGlobalStatus('Failed','error');return}
+    state=d.state;renderStatus();setSysStatus('Saved.',false);setGlobalStatus('Systems saved.','ok');
+    showSection('analysis-section');
+  }catch(e){setSysStatus('Error: '+e.message,true);setGlobalStatus('Error','error')}
+};
+function setSysStatus(m,e){$('#systems-status').textContent=m;$('#systems-status').className='run-status'+(e?' error':'')}
 
-async function pollPreprocessProgress(systemIdx, op, shouldKeepPolling, onTick, intervalMs = 1500) {
-  while (shouldKeepPolling()) {
-    try {
-      const r = await fetch(`/api/preprocess-progress?system=${systemIdx}`);
-      if (r.ok) {
-        const snap = await r.json();
-        onTick(snap[op] || null);
-      }
-    } catch (_) { /* ignore */ }
-    await new Promise(res => setTimeout(res, intervalMs));
-  }
-}
+$('#btn-reset').onclick=async()=>{
+  if(!confirm('Reset workspace?'))return;await fetch('/api/reset',{method:'POST'});
+  $('#results-area').innerHTML='';state={systems:[],outputs:[]};renderStatus();
+  $('#systems-list').innerHTML='';addSystemRow({label:'System 1'});setSysStatus('',false);
+  setGlobalStatus('Reset.','ok');
+  $('#analysis-section').classList.remove('visible');$('#results-section').classList.remove('visible');
+};
 
-function formatProgress(snap, verb) {
-  if (!snap) return `${verb}…`;
-  const { done, total } = snap;
-  if (!total) return `${verb}… (starting)`;
-  const pct = ((done / total) * 100).toFixed(1);
-  return `${verb}: ${pct}%  (${done.toLocaleString()} / ${total.toLocaleString()} frames)`;
-}
-
-function collectSystemsFromUI() {
-  const rows = $$('#systems-list .system-row');
-  return rows.map(row => ({
-    label: row.querySelector('.label-input').value.trim(),
-    topology: row.querySelector('.topology-input').value.trim(),
-    trajectory: row.querySelector('.trajectory-input').value.trim(),
-    color: row.querySelector('.color-input').value,
-  })).filter(s => s.topology || s.trajectory);
-}
-
-$('#btn-add-system').addEventListener('click', () =>
-  addSystemRow({ label: `System ${$$('#systems-list .system-row').length + 1}` }));
-
-$('#btn-save-systems').addEventListener('click', async () => {
-  const systems = collectSystemsFromUI();
-  setSystemsStatus(`Saving ${systems.length} system(s)…`, false);
-  setGlobalStatus(`Saving ${systems.length} system(s)…`, 'running');
-  try {
-    const res = await fetch('/api/systems', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ systems }),
-    });
-    const data = await res.json().catch(() => ({}));
-    if (!res.ok) {
-      setSystemsStatus(`Failed: ${data.detail || res.statusText}`, true);
-      setGlobalStatus(`Save failed: ${data.detail || res.statusText}`, 'error');
-      return;
-    }
-    state = data.state;
-    renderStatus();
-    setSystemsStatus(`Saved ${state.systems.length} system(s).`, false);
-    setGlobalStatus(`Saved ${state.systems.length} system(s).`, 'ok');
-  } catch (e) {
-    setSystemsStatus(`Error: ${e.message}`, true);
-    setGlobalStatus(`Error: ${e.message}`, 'error');
-  }
-});
-
-function setSystemsStatus(msg, isError) {
-  const el = $('#systems-status');
-  el.textContent = msg;
-  el.className = 'run-status' + (isError ? ' error' : '');
-}
-
-$('#btn-reset').addEventListener('click', async () => {
-  if (!confirm('Delete every file in the workspace and clear registered systems?')) return;
-  await fetch('/api/reset', { method: 'POST' });
-  $('#results-area').innerHTML = '';
-  state = { systems: [], outputs: [] };
-  renderStatus();
-  $('#systems-list').innerHTML = '';
-  addSystemRow({ label: 'System 1' });
-  setSystemsStatus('', false);
-  setGlobalStatus('Workspace reset.', 'ok');
-});
-
-// ---- file browser (server-side) ----
-async function fetchBrowse(role, path) {
-  const params = new URLSearchParams();
-  if (path) params.set('path', path);
-  if (role) params.set('role', role);
-  const res = await fetch('/api/browse?' + params.toString());
-  if (!res.ok) {
-    const d = await res.json().catch(() => ({}));
-    throw new Error(d.detail || `HTTP ${res.status}`);
-  }
-  return res.json();
-}
-
-function fmtSize(b) {
-  if (b == null) return '';
-  if (b < 1024)        return `${b} B`;
-  if (b < 1024 ** 2)   return `${(b / 1024).toFixed(1)} KB`;
-  if (b < 1024 ** 3)   return `${(b / 1024 / 1024).toFixed(1)} MB`;
-  return `${(b / 1024 / 1024 / 1024).toFixed(2)} GB`;
-}
-
-function renderBrowser(panel, role, data, rowEl) {
-  panel.innerHTML = '';
-  const hdr = document.createElement('div');
-  hdr.className = 'fb-header';
-  const pathSpan = document.createElement('span');
-  pathSpan.className = 'fb-path';
-  pathSpan.textContent = data.path;
-  pathSpan.title = data.path;
-  const closeBtn = document.createElement('button');
-  closeBtn.type = 'button';
-  closeBtn.className = 'ghost small';
-  closeBtn.textContent = 'Close';
-  closeBtn.addEventListener('click', () => { panel.style.display = 'none'; });
-  hdr.append(pathSpan, closeBtn);
-  panel.appendChild(hdr);
-
-  const list = document.createElement('div');
-  list.className = 'fb-entries';
-  if (data.parent) {
-    const up = document.createElement('div');
-    up.className = 'fb-entry';
-    up.innerHTML = '<span class="fb-icon">↑</span><span>..</span>';
-    up.addEventListener('click', () => openBrowser(panel, role, data.parent, rowEl));
-    list.appendChild(up);
-  }
-  for (const d of (data.dirs || [])) {
-    const r = document.createElement('div');
-    r.className = 'fb-entry';
-    r.innerHTML = `<span class="fb-icon">📁</span><span>${d.name}</span>`;
-    r.addEventListener('click', () => openBrowser(panel, role, d.path, rowEl));
-    list.appendChild(r);
-  }
-  for (const f of (data.files || [])) {
-    const r = document.createElement('div');
-    r.className = 'fb-entry';
-    r.innerHTML = `<span class="fb-icon">📄</span><span>${f.name}</span><span class="fb-size">${fmtSize(f.size)}</span>`;
-    r.addEventListener('click', () => {
-      rowEl.querySelector(`.${role}-input`).value = f.path;
-      panel.style.display = 'none';
-    });
-    list.appendChild(r);
-  }
-  if (!(data.dirs || []).length && !(data.files || []).length) {
-    const e = document.createElement('div');
-    e.className = 'fb-empty';
-    e.textContent = data.parent
-      ? `No matching ${role} files here. Use ".." to go up.`
-      : 'Empty directory.';
-    list.appendChild(e);
-  }
+/* ── File browser ── */
+async function fetchBrowse(role,path){const p=new URLSearchParams();if(path)p.set('path',path);if(role)p.set('role',role);const r=await fetch('/api/browse?'+p);if(!r.ok){const d=await r.json().catch(()=>({}));throw new Error(d.detail||'HTTP '+r.status)}return r.json()}
+function fmtSize(b){if(b==null)return'';if(b<1024)return b+' B';if(b<1048576)return(b/1024).toFixed(1)+' KB';if(b<1073741824)return(b/1048576).toFixed(1)+' MB';return(b/1073741824).toFixed(2)+' GB'}
+function renderBrowser(panel,role,data,row){
+  panel.innerHTML='';
+  const h=document.createElement('div');h.className='fb-header';const ps=document.createElement('span');ps.className='fb-path';ps.textContent=data.path;const cb=document.createElement('button');cb.className='ghost sm';cb.textContent='Close';cb.onclick=()=>{panel.style.display='none'};h.append(ps,cb);panel.appendChild(h);
+  const list=document.createElement('div');list.className='fb-entries';
+  if(data.parent){const u=document.createElement('div');u.className='fb-entry';u.innerHTML='<span class="fb-icon">&uarr;</span><span>..</span>';u.onclick=()=>openBrowser(panel,role,data.parent,row);list.appendChild(u)}
+  for(const d of(data.dirs||[])){const r=document.createElement('div');r.className='fb-entry';r.innerHTML=`<span class="fb-icon">&#128193;</span><span>${d.name}</span>`;r.onclick=()=>openBrowser(panel,role,d.path,row);list.appendChild(r)}
+  for(const f of(data.files||[])){const r=document.createElement('div');r.className='fb-entry';r.innerHTML=`<span class="fb-icon">&#128196;</span><span>${f.name}</span><span class="fb-size">${fmtSize(f.size)}</span>`;r.onclick=()=>{row.querySelector('.'+role+'-input').value=f.path;panel.style.display='none'};list.appendChild(r)}
+  if(!(data.dirs||[]).length&&!(data.files||[]).length){const e=document.createElement('div');e.className='fb-empty';e.textContent='No matching files.';list.appendChild(e)}
   panel.appendChild(list);
-
-  const go = document.createElement('div');
-  go.className = 'fb-go';
-  const goInp = document.createElement('input');
-  goInp.type = 'text';
-  goInp.placeholder = 'Jump to absolute path…';
-  goInp.value = data.path;
-  const goBtn = document.createElement('button');
-  goBtn.type = 'button';
-  goBtn.textContent = 'Go';
-  const goHandler = () => {
-    const v = goInp.value.trim();
-    if (v) openBrowser(panel, role, v, rowEl);
-  };
-  goBtn.addEventListener('click', goHandler);
-  goInp.addEventListener('keydown', (e) => { if (e.key === 'Enter') goHandler(); });
-  go.append(goInp, goBtn);
-  panel.appendChild(go);
+  const go=document.createElement('div');go.className='fb-go';const gi=document.createElement('input');gi.type='text';gi.placeholder='Jump to path...';gi.value=data.path;const gb=document.createElement('button');gb.textContent='Go';const gh=()=>{const v=gi.value.trim();if(v)openBrowser(panel,role,v,row)};gb.onclick=gh;gi.onkeydown=e=>{if(e.key==='Enter')gh()};go.append(gi,gb);panel.appendChild(go);
 }
+async function openBrowser(panel,role,path,row){panel.style.display='';panel.innerHTML='<div class="fb-empty">Loading...</div>';try{renderBrowser(panel,role,await fetchBrowse(role,path),row)}catch(e){panel.innerHTML='<div class="fb-empty" style="color:var(--danger)">'+e.message+'</div>'}}
+function toggleBrowser(row,role){const p=row.querySelector('.browser-'+role);if(p.style.display!=='none'){p.style.display='none';return}openBrowser(p,role,row.querySelector('.'+role+'-input').value.trim(),row)}
 
-async function openBrowser(panel, role, path, rowEl) {
-  panel.style.display = '';
-  panel.innerHTML = '<div class="fb-empty">Loading…</div>';
-  try {
-    const data = await fetchBrowse(role, path);
-    renderBrowser(panel, role, data, rowEl);
-  } catch (err) {
-    panel.innerHTML = `<div class="fb-empty error">Error: ${err.message}</div>`;
-  }
+/* ── Analysis expand ── */
+$$('.analysis-block').forEach(b=>{const cb=b.querySelector('input[data-toggle]');cb.onchange=()=>b.classList.toggle('expanded',cb.checked);b.querySelector('header').onclick=e=>{if(e.target===cb||e.target.closest('input,label'))return;cb.checked=!cb.checked;cb.dispatchEvent(new Event('change'))}});
+function collectOptions(t){const o={};$$(`[data-tab="${t}"]`).forEach(i=>{if(i.type==='checkbox'){if(i.checked)o[i.name]=true}else if(i.value!==''){if(i.type==='number'){const n=Number(i.value);if(!isNaN(n))o[i.name]=n}else o[i.name]=i.value}});return o}
+
+/* ── Run → reveal results ── */
+function setRunUI(r){$('#btn-run-batch').hidden=r;$('#btn-cancel-run').hidden=!r;$('#btn-cancel-results').hidden=!r}
+let cancelRequested=false;
+async function doCancel(){cancelRequested=true;setGlobalStatus('Cancelling...','running');$('#btn-cancel-run').disabled=true;$('#btn-cancel-results').disabled=true;try{await fetch('/api/cancel-run',{method:'POST'})}catch(e){setGlobalStatus('Cancel failed','error')}}
+$('#btn-cancel-run').onclick=doCancel;$('#btn-cancel-results').onclick=doCancel;
+function showProgress(l,p,t){$('#progress-area').style.display='';$('#progress-label').textContent=l;$('#progress-bar').style.width=p+'%';$('#progress-text').textContent=t||''}
+function hideProgress(){$('#progress-area').style.display='none'}
+
+$('#btn-run-batch').onclick=async()=>{
+  const sel=$$('.analysis-block input[data-toggle]:checked').map(c=>c.dataset.toggle);
+  if(!sel.length){setRunStatus('Tick at least one analysis.',true);return}
+  if(!state.systems.length){setRunStatus('Upload systems first.',true);return}
+  const inc=state.systems.find(s=>!s.topology||!s.trajectory);
+  if(inc){setRunStatus('"'+inc.label+'" missing files.',true);return}
+
+  showSection('results-section');
+  $('#results-area').innerHTML='';showProgress('Preparing...',0,'Starting...');
+
+  const doInfo=sel.includes('info'),batch={};for(const n of sel)if(n!=='info')batch[n]=collectOptions(n);
+  setRunStatus('Running...',false);setGlobalStatus('Running '+sel.join(', ')+'...','running');
+  cancelRequested=false;$('#btn-cancel-run').disabled=false;$('#btn-cancel-results').disabled=false;setRunUI(true);
+  const rows=$$('#systems-list .sys-row');let alive=true;
+
+  const poller=(async()=>{while(alive){try{const snaps=await Promise.all(state.systems.map((_,i)=>fetch('/api/preprocess-progress?system='+i).then(r=>r.ok?r.json():null).catch(()=>null)));let ai=-1;for(let i=0;i<state.systems.length&&i<rows.length;i++){const sn=(snaps[i]&&snaps[i].prepare)||null;if(!sn){showPrepareStatus(rows[i],'');continue}if(sn.finished)showPrepareStatus(rows[i],'');else{showPrepareStatus(rows[i],formatProgress(sn,'Preparing '+state.systems[i].label));if(ai<0)ai=i}}if(!alive)break;if(ai>=0){const sn=snaps[ai].prepare;showProgress('Preparing '+state.systems[ai].label,(sn.total?((sn.done/sn.total)*100):0).toFixed(0),formatProgress(sn,'Preparing'));setGlobalStatus(formatProgress(sn,'Preparing '+state.systems[ai].label),'running')}}catch(_){}await new Promise(r=>setTimeout(r,1000))}})();
+
+  try{
+    if(doInfo){const infos=[];for(let i=0;i<state.systems.length;i++){const r=await fetch('/api/info',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({system:i})});infos.push({label:state.systems[i].label,ok:r.ok,data:await r.json()})}renderInfo(infos)}
+    if(Object.keys(batch).length){
+      const ai=!!$('#opt-autoimage').checked,ord=Object.keys(batch),ph={};
+      for(const n of ord)ph[n]=mkPlaceholder(n);
+      let fail=null,cancelled=false;
+      for(let i=0;i<ord.length;i++){const name=ord[i];
+        if(cancelRequested){ph[name].replaceWith(mkErr(name,'Cancelled'));cancelled=true;continue}
+        showProgress('Running '+name.toUpperCase(),((i/ord.length)*100).toFixed(0),(i+1)+' of '+ord.length);
+        setRunStatus('Running '+name+'...',false);setGlobalStatus('Running '+name+'...','running');
+        try{const r=await fetch('/api/run-batch',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({analyses:{[name]:batch[name]},autoimage:ai})});
+          if(r.status===499){ph[name].replaceWith(mkErr(name,'Cancelled'));cancelled=true;continue}
+          const d=await r.json();if(!r.ok){ph[name].replaceWith(mkErr(name,d.detail||r.statusText));fail=fail||(d.detail||r.statusText);continue}
+          if(d.result&&d.result[name])ph[name].replaceWith(renderResult(name,d.result[name]));else ph[name].remove();
+          if(d.state){state=d.state;renderStatus()}
+        }catch(e){ph[name].replaceWith(mkErr(name,e.message));fail=fail||e.message}}
+      showProgress('Complete',100,cancelled?'Cancelled':fail?'Done with errors':'All analyses complete');
+      if(cancelled){setRunStatus('Cancelled.',true);setGlobalStatus('Cancelled.','error');return}
+      if(fail){setRunStatus('Done with errors.',true);setGlobalStatus('Errors.','error');return}
+    }else{await refreshStatus()}
+    setRunStatus('Done.',false);setGlobalStatus('Done.','ok');showProgress('Complete',100,'All done');
+  }catch(e){setRunStatus('Error: '+e.message,true);setGlobalStatus('Error','error')}
+  finally{alive=false;await poller;for(const r of rows)showPrepareStatus(r,'');setRunUI(false);setTimeout(hideProgress,4000)}
+};
+function setRunStatus(m,e){$('#run-status').textContent=m;$('#run-status').className='run-status'+(e?' error':'')}
+
+function renderInfo(infos){const b=document.createElement('div');b.className='result-block';b.innerHTML='<h4>Info</h4>';for(const it of infos){const w=document.createElement('div');w.style.marginBottom='0.5rem';w.innerHTML='<strong>'+it.label+'</strong>';const p=document.createElement('pre');p.className='json';p.textContent=JSON.stringify(it.data,null,2);w.appendChild(p);b.appendChild(w)}$('#results-area').appendChild(b)}
+function renderResult(name,entry){
+  const b=document.createElement('div');b.className='result-block';b.innerHTML='<h4>'+name.toUpperCase()+'</h4>';
+  if(entry.systems){const lw=document.createElement('p');lw.innerHTML=entry.systems.filter(s=>s.data).map(s=>'<strong>'+s.label+':</strong> <a href="/api/result/'+encodeURIComponent(s.data)+'" target="_blank" download>'+s.data+'</a>'+(s.plot?' &middot; <a href="/api/result/'+encodeURIComponent(s.plot)+'" target="_blank" download>'+s.plot+'</a>':'')+(s.rep_pdb?' &middot; <a href="/api/result/'+encodeURIComponent(s.rep_pdb)+'" target="_blank" download>'+s.rep_pdb+'</a>':'')).join('<br>');b.appendChild(lw)}
+  if(entry.plot){const l=document.createElement('p');l.innerHTML='Combined: <a href="/api/result/'+encodeURIComponent(entry.plot)+'" target="_blank" download>'+entry.plot+'</a>';b.appendChild(l);const img=document.createElement('img');img.src='/api/result/'+encodeURIComponent(entry.plot)+'?cb='+Date.now();img.alt=name;img.onclick=()=>openLightbox(img.src);b.appendChild(img)}
+  if(entry.systems&&!entry.plot){for(const s of entry.systems){if(s.plot){const l=document.createElement('p');l.innerHTML='<strong>'+s.label+'</strong>';b.appendChild(l);const img=document.createElement('img');img.src='/api/result/'+encodeURIComponent(s.plot)+'?cb='+Date.now();img.alt=name+' '+s.label;img.onclick=()=>openLightbox(img.src);b.appendChild(img)}}}
+  return b;
 }
+function mkPlaceholder(n){const b=document.createElement('div');b.className='result-block';b.innerHTML='<h4>'+n.toUpperCase()+'</h4><p style="color:var(--muted)">Running...</p>';$('#results-area').appendChild(b);return b}
+function mkErr(n,m){const b=document.createElement('div');b.className='result-block';b.innerHTML='<h4>'+n.toUpperCase()+'</h4><p style="color:var(--danger)">Failed: '+m+'</p>';return b}
 
-function toggleBrowser(rowEl, role) {
-  const panel = rowEl.querySelector(`.browser-${role}`);
-  if (panel.style.display !== 'none') { panel.style.display = 'none'; return; }
-  const start = rowEl.querySelector(`.${role}-input`).value.trim();
-  openBrowser(panel, role, start, rowEl);
-}
+/* ── Lightbox ── */
+function openLightbox(s){$('#lb-img').src=s;$('#lightbox').classList.add('open')}
+function closeLightbox(){$('#lightbox').classList.remove('open');$('#lb-img').src=''}
+$('#lb-close').onclick=closeLightbox;$('#lightbox').onclick=e=>{if(e.target.id==='lightbox')closeLightbox()};document.onkeydown=e=>{if(e.key==='Escape')closeLightbox()};
 
-// ---- analysis block expand/collapse ----
-$$('.analysis-block').forEach(block => {
-  const cb = block.querySelector('input[type="checkbox"][data-toggle]');
-  cb.addEventListener('change', () => {
-    if (cb.checked) block.classList.add('expanded');
-    else block.classList.remove('expanded');
-  });
-  block.querySelector('header').addEventListener('click', (e) => {
-    if (e.target === cb || e.target.closest('input, label')) return;
-    cb.checked = !cb.checked;
-    cb.dispatchEvent(new Event('change'));
-  });
-});
+$('#btn-refresh-results').onclick=async()=>{setGlobalStatus('Refreshing...','running');await refreshStatus();setGlobalStatus('Refreshed.','ok')};
 
-// ---- collect params per analysis ----
-function collectOptions(tab) {
-  const opts = {};
-  $$(`[data-tab="${tab}"]`).forEach(input => {
-    if (input.type === 'checkbox') {
-      if (input.checked) opts[input.name] = true;
-    } else if (input.value !== '' && input.value !== null) {
-      const v = input.value;
-      if (input.type === 'number') {
-        const n = Number(v);
-        if (!Number.isNaN(n)) opts[input.name] = n;
-      } else {
-        opts[input.name] = v;
-      }
-    }
-  });
-  return opts;
-}
+/* ── Workers ── */
+async function loadSettings(){try{const r=await fetch('/api/settings');if(!r.ok)return;const s=await r.json();if(s.workers!=null)$('#opt-workers').value=s.workers;else $('#opt-workers').value='';$('#workers-hint').textContent='('+s.effective_workers+'/'+s.total_cores+' cores)'}catch(_){}}
+async function saveWorkers(){const v=$('#opt-workers').value.trim();try{const r=await fetch('/api/settings',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({workers:v===''?null:Number(v)})});if(!r.ok)return;const s=await r.json();$('#workers-hint').textContent='('+s.effective_workers+'/'+s.total_cores+' cores)'}catch(_){}}
+$('#opt-workers').onchange=saveWorkers;$('#opt-workers').onkeydown=e=>{if(e.key==='Enter'){e.preventDefault();saveWorkers()}};
 
-// ---- Run batch ----
-// Show the Stop button + hide Run while a run is in flight. Stop fires
-// /api/cancel-run which terminates the multiprocessing pools and trips
-// the prep loop's cancellation check.
-function setRunningUI(running) {
-  $('#btn-run-batch').hidden = running;
-  $('#btn-cancel-run').hidden = !running;
-}
-
-// Sticky cancellation latch — once user clicks Stop, the run loop on
-// the frontend stops issuing new /api/run-batch calls. Without this
-// flag the server's reset_cancellation() at the start of every call
-// would wipe the cancel signal as we moved from rg → sasa → hbond.
-let cancelRequested = false;
-
-$('#btn-cancel-run').addEventListener('click', async () => {
-  cancelRequested = true;
-  setGlobalStatus('Cancelling…', 'running');
-  $('#btn-cancel-run').disabled = true;
-  try {
-    await fetch('/api/cancel-run', { method: 'POST' });
-  } catch (e) {
-    setGlobalStatus(`Cancel failed: ${e.message}`, 'error');
-  }
-});
-
-$('#btn-run-batch').addEventListener('click', async () => {
-  const selected = $$('.analysis-block input[data-toggle]:checked')
-    .map(cb => cb.dataset.toggle);
-  if (!selected.length) {
-    setRunStatus('Tick at least one analysis first.', true);
-    setGlobalStatus('Tick at least one analysis first.', 'error');
-    return;
-  }
-  if (!state.systems.length) {
-    setRunStatus('Register at least one system first (Save systems above).', true);
-    setGlobalStatus('Save at least one system first.', 'error');
-    return;
-  }
-  const incomplete = state.systems.find(s => !s.topology || !s.trajectory);
-  if (incomplete) {
-    setRunStatus(`System "${incomplete.label}" is missing files.`, true);
-    setGlobalStatus(`System "${incomplete.label}" is missing files.`, 'error');
-    return;
-  }
-
-  const handleInfo = selected.includes('info');
-  const batchAnalyses = {};
-  for (const name of selected) {
-    if (name === 'info') continue;
-    batchAnalyses[name] = collectOptions(name);
-  }
-
-  setRunStatus('Running…', false);
-  setGlobalStatus(`Running ${selected.length} analysis (${selected.join(', ')})…`, 'running');
-  $('#results-area').innerHTML = '';
-
-  cancelRequested = false;
-  $('#btn-cancel-run').disabled = false;
-  setRunningUI(true);
-  const rows = $$('#systems-list .system-row');
-  let runInFlight = true;
-  // Single shared poller for all systems. Each tick polls every system's
-  // prep progress in parallel, then reports the *currently active* one
-  // in the global status bar (or "Running analyses…" once every system
-  // has finished prep and the run-batch call is still chugging on
-  // RMSD/RMSF/etc). Per-row status shows that row's own progress.
-  const combinedPoller = (async () => {
-    while (runInFlight) {
-      try {
-        const snaps = await Promise.all(
-          state.systems.map((_, i) =>
-            fetch(`/api/preprocess-progress?system=${i}`)
-              .then(r => (r.ok ? r.json() : null))
-              .catch(() => null),
-          ),
-        );
-        let activeIdx = -1;
-        let anyStarted = false;
-        let allDone = state.systems.length > 0;
-        for (let i = 0; i < state.systems.length && i < rows.length; i++) {
-          const row = rows[i];
-          const snap = (snaps[i] && snaps[i].prepare) || null;
-          if (!snap) {
-            showPrepareStatus(row, '');
-            allDone = false;       // not even started yet → prep not done
-            continue;
-          }
-          anyStarted = true;
-          if (snap.finished) {
-            showPrepareStatus(row, '');
-          } else {
-            allDone = false;
-            const text = formatProgress(snap, `Preparing ${state.systems[i].label}`);
-            showPrepareStatus(row, text);
-            // First not-finished system "owns" the global status —
-            // the server prepares systems sequentially, so this is the
-            // only one actually doing work right now.
-            if (activeIdx < 0) activeIdx = i;
-          }
-        }
-        if (!runInFlight) break;
-        if (activeIdx >= 0) {
-          const snap = snaps[activeIdx].prepare;
-          setGlobalStatus(
-            formatProgress(snap, `Preparing ${state.systems[activeIdx].label}`),
-            'running',
-          );
-        }
-        // When activeIdx < 0 (no prep in progress) the run loop owns the
-        // global status — it sets a more specific "Running <name>…" per
-        // analysis. Don't overwrite that with a generic "Running
-        // analyses…" string.
-      } catch (_) {
-        // transient — keep polling
-      }
-      await new Promise(r => setTimeout(r, 1000));
-    }
-  })();
-
-  try {
-    if (handleInfo) {
-      const infos = [];
-      for (let i = 0; i < state.systems.length; i++) {
-        const r = await fetch('/api/info', {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ system: i }),
-        });
-        const data = await r.json();
-        infos.push({ label: state.systems[i].label, ok: r.ok, data });
-      }
-      renderInfo(infos);
-    }
-
-    if (Object.keys(batchAnalyses).length) {
-      const doAutoimage = !!$('#opt-autoimage').checked;
-
-      // Streaming render: one /api/run-batch call per ticked analysis,
-      // each result rendered as soon as it returns. First call also does
-      // the prep; subsequent calls hit the cache and only run the
-      // analysis itself — so user sees results trickle in instead of
-      // waiting for the whole batch.
-      const orderedAnalyses = Object.keys(batchAnalyses);
-      // Pre-create placeholders in display order so user sees the
-      // skeleton of pending analyses upfront.
-      const placeholders = {};
-      for (const name of orderedAnalyses) {
-        placeholders[name] = insertRunningPlaceholder(name);
-      }
-
-      let firstFailure = null;
-      let wasCancelled = false;
-      for (const name of orderedAnalyses) {
-        // Bail before starting the next analysis if user clicked Stop.
-        // The previous analysis call may have returned 499 (cancelled)
-        // or completed naturally; either way, don't issue more work.
-        if (cancelRequested) {
-          placeholders[name].replaceWith(insertErrorBlock(name, 'Cancelled'));
-          wasCancelled = true;
-          continue;
-        }
-        setRunStatus(`Running ${name}…`, false);
-        setGlobalStatus(`Running ${name}…`, 'running');
-        try {
-          const r = await fetch('/api/run-batch', {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({
-              analyses: { [name]: batchAnalyses[name] },
-              autoimage: doAutoimage,
-            }),
-          });
-          // r.status === 499 → user cancelled mid-flight on the server
-          // side (Cancelled exception bubbled up). Mark as cancelled
-          // without surfacing the generic error styling.
-          if (r.status === 499) {
-            placeholders[name].replaceWith(insertErrorBlock(name, 'Cancelled'));
-            wasCancelled = true;
-            continue;
-          }
-          const data = await r.json();
-          if (!r.ok) {
-            const errBlock = insertErrorBlock(name, data.detail || r.statusText);
-            placeholders[name].replaceWith(errBlock);
-            firstFailure = firstFailure || (data.detail || r.statusText);
-            continue;
-          }
-          if (data.result && data.result[name]) {
-            const real = renderOneResult(name, data.result[name]);
-            placeholders[name].replaceWith(real);
-          } else {
-            placeholders[name].remove();
-          }
-          if (data.state) {
-            state = data.state;
-            renderStatus();
-          }
-        } catch (e) {
-          const errBlock = insertErrorBlock(name, e.message || String(e));
-          placeholders[name].replaceWith(errBlock);
-          firstFailure = firstFailure || e.message;
-        }
-      }
-      if (wasCancelled) {
-        setRunStatus('Cancelled.', true);
-        setGlobalStatus('Cancelled.', 'error');
-        return;
-      }
-      if (firstFailure) {
-        setRunStatus(`Done with errors: ${firstFailure}`, true);
-        setGlobalStatus(`Done with errors: ${firstFailure}`, 'error');
-        return;  // skip "Done." overwrite below
-      }
-    } else {
-      await refreshStatus();
-    }
-
-    setRunStatus('Done.', false);
-    setGlobalStatus('Done.', 'ok');
-  } catch (e) {
-    setRunStatus(`Error: ${e.message || e}`, true);
-    setGlobalStatus(`Error: ${e.message || e}`, 'error');
-  } finally {
-    runInFlight = false;
-    await combinedPoller;
-    for (const row of rows) showPrepareStatus(row, '');
-    setRunningUI(false);
-  }
-});
-
-function setRunStatus(msg, isError) {
-  const el = $('#run-status');
-  el.textContent = msg;
-  el.className = 'run-status' + (isError ? ' error' : '');
-}
-
-function renderInfo(infos) {
-  const area = $('#results-area');
-  const block = document.createElement('div');
-  block.className = 'result-block';
-  block.innerHTML = `<h4>Info</h4>`;
-  for (const it of infos) {
-    const wrap = document.createElement('div');
-    wrap.style.marginBottom = '0.5rem';
-    wrap.innerHTML = `<strong>${it.label}</strong>`;
-    const pre = document.createElement('pre');
-    pre.className = 'json';
-    pre.textContent = JSON.stringify(it.data, null, 2);
-    wrap.appendChild(pre);
-    block.appendChild(wrap);
-  }
-  area.appendChild(block);
-}
-
-// Renders ONE analysis result into a fresh DOM block and returns it.
-// Used both by the streaming Run-analysis loop (one block per call) and
-// the legacy batched render path (loop + append).
-function renderOneResult(name, entry) {
-  const block = document.createElement('div');
-  block.className = 'result-block';
-  block.dataset.analysis = name;
-  const title = document.createElement('h4');
-  title.textContent = name.toUpperCase();
-  block.appendChild(title);
-
-  if (entry.systems) {
-    const linksWrap = document.createElement('p');
-    const links = [];
-    for (const s of entry.systems) {
-      if (s.data) {
-        links.push(
-          `<strong>${s.label}:</strong> ` +
-          `<a href="/api/result/${encodeURIComponent(s.data)}" target="_blank" download>${s.data}</a>` +
-          (s.plot ? ` &middot; <a href="/api/result/${encodeURIComponent(s.plot)}" target="_blank" download>${s.plot}</a>` : '') +
-          (s.rep_pdb ? ` &middot; <a href="/api/result/${encodeURIComponent(s.rep_pdb)}" target="_blank" download>${s.rep_pdb}</a>` : '')
-        );
-      }
-    }
-    linksWrap.innerHTML = links.join('<br>');
-    block.appendChild(linksWrap);
-  }
-
-  if (entry.plot) {
-    const links = document.createElement('p');
-    links.innerHTML =
-      `Combined plot: <a href="/api/result/${encodeURIComponent(entry.plot)}" target="_blank" download>${entry.plot}</a>`;
-    block.appendChild(links);
-    const img = document.createElement('img');
-    img.src = `/api/result/${encodeURIComponent(entry.plot)}?cb=${Date.now()}`;
-    img.alt = `${name} plot`;
-    img.addEventListener('click', () => openLightbox(img.src));
-    block.appendChild(img);
-  }
-
-  if (entry.systems && !entry.plot) {
-    for (const s of entry.systems) {
-      if (s.plot) {
-        const lbl = document.createElement('p');
-        lbl.innerHTML = `<strong>${s.label}</strong>`;
-        block.appendChild(lbl);
-        const img = document.createElement('img');
-        img.src = `/api/result/${encodeURIComponent(s.plot)}?cb=${Date.now()}`;
-        img.alt = `${name} ${s.label}`;
-        img.addEventListener('click', () => openLightbox(img.src));
-        block.appendChild(img);
-      }
-    }
-  }
-  return block;
-}
-
-// Insert a "Running …" placeholder so the user sees something for each
-// ticked analysis the moment they hit Run, before that analysis returns.
-function insertRunningPlaceholder(name) {
-  const area = $('#results-area');
-  const block = document.createElement('div');
-  block.className = 'result-block running';
-  block.dataset.analysis = name;
-  block.innerHTML =
-    `<h4>${name.toUpperCase()}</h4>` +
-    `<p class="muted">Running… <span class="spinner-dots">●●●</span></p>`;
-  area.appendChild(block);
-  return block;
-}
-
-function insertErrorBlock(name, message) {
-  const block = document.createElement('div');
-  block.className = 'result-block error';
-  block.dataset.analysis = name;
-  block.innerHTML =
-    `<h4>${name.toUpperCase()}</h4>` +
-    `<p class="error">Failed: ${message}</p>`;
-  return block;
-}
-
-// Legacy multi-result render — used by the Info path which still pulls
-// a single bundled response. Just loops + appends.
-function renderBatchResults(result) {
-  const area = $('#results-area');
-  for (const [name, entry] of Object.entries(result)) {
-    area.appendChild(renderOneResult(name, entry));
-  }
-}
-
-// ---- lightbox ----
-function openLightbox(src) {
-  const lb = $('#lightbox'); const img = $('#lb-img');
-  img.src = src;
-  lb.classList.add('open');
-  lb.setAttribute('aria-hidden', 'false');
-}
-function closeLightbox() {
-  const lb = $('#lightbox');
-  lb.classList.remove('open');
-  lb.setAttribute('aria-hidden', 'true');
-  $('#lb-img').src = '';
-}
-$('#lb-close').addEventListener('click', closeLightbox);
-$('#lightbox').addEventListener('click', e => { if (e.target.id === 'lightbox') closeLightbox(); });
-document.addEventListener('keydown', e => { if (e.key === 'Escape') closeLightbox(); });
-
-// ---- refresh results button ----
-$('#btn-refresh-results').addEventListener('click', async () => {
-  setGlobalStatus('Refreshing status…', 'running');
-  await refreshStatus();
-  setGlobalStatus('Status refreshed.', 'ok');
-});
-
-// ---- persistent settings (workers count) ----
-async function loadSettings() {
-  try {
-    const r = await fetch('/api/settings');
-    if (!r.ok) return;
-    const s = await r.json();
-    const input = $('#opt-workers');
-    const hint = $('#workers-hint');
-    if (s.workers != null) {
-      input.value = s.workers;
-    } else {
-      input.value = '';
-    }
-    hint.textContent = `(active: ${s.effective_workers} / ${s.total_cores} cores)`;
-  } catch (_) { /* harmless */ }
-}
-
-async function saveWorkersSetting() {
-  const raw = $('#opt-workers').value.trim();
-  const payload = { workers: raw === '' ? null : Number(raw) };
-  try {
-    const r = await fetch('/api/settings', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify(payload),
-    });
-    if (!r.ok) {
-      const d = await r.json().catch(() => ({}));
-      setGlobalStatus(`Workers setting rejected: ${d.detail || r.statusText}`, 'error');
-      return;
-    }
-    const s = await r.json();
-    $('#workers-hint').textContent = `(active: ${s.effective_workers} / ${s.total_cores} cores, saved)`;
-  } catch (e) {
-    setGlobalStatus(`Workers save failed: ${e.message}`, 'error');
-  }
-}
-
-// Auto-save on blur or Enter — avoids saving on every keystroke.
-$('#opt-workers').addEventListener('change', saveWorkersSetting);
-$('#opt-workers').addEventListener('keydown', (e) => {
-  if (e.key === 'Enter') { e.preventDefault(); saveWorkersSetting(); }
-});
-
-// ---- bootstrap ----
-(async function init() {
-  setGlobalStatus('Loading…', 'running');
-  await refreshStatus();
-  await loadSettings();
-  renderSystems();
-  setGlobalStatus('Ready.', 'ok');
+/* ── Init ── */
+(async()=>{
+  setGlobalStatus('Loading...','running');await refreshStatus();await loadSettings();renderSystems();
+  if(state.systems.length&&state.systems.every(s=>s.topology&&s.trajectory))showSection('analysis-section');
+  setGlobalStatus('Ready.','ok');
 })();
 </script>
 </body>

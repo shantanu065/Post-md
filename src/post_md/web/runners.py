@@ -496,7 +496,7 @@ def _run_overlay(name: str, systems: list[dict], workdir: Path, opts: dict) -> d
             curves, labels, plot_path, style=style,
             default_xlabel=x_label_default,
             default_ylabel=spec["ylabel"],
-            default_title=f"{spec['default_title']} — comparison",
+            default_title=spec["default_title"],
             colors=per_system_colors,
         )
     return {"systems": per_system, "plot": plot_path.name}
