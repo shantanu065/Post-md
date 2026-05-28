@@ -11,6 +11,8 @@ Open-source toolkit for rapid analysis of molecular dynamics trajectories.
 ## Install
 
 ```bash
+git clone https://github.com/shantanu065/Post-md.git
+cd Post-md
 pip install -e "."          # CLI
 pip install -e ".[web]"     # CLI + browser UI
 ```
