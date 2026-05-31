@@ -109,6 +109,8 @@ def _build_style(opts: dict, default_figsize=(7.5, 4.5)) -> PlotStyle:
         xmax=_axis_limit(opts, "xmax"),
         ymin=_axis_limit(opts, "ymin"),
         ymax=_axis_limit(opts, "ymax"),
+        open_frame=bool(opts.get("open_frame")),
+        show_average=bool(opts.get("show_average")),
     )
 
 

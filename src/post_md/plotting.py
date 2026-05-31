@@ -22,11 +22,6 @@ from matplotlib.ticker import AutoMinorLocator, MaxNLocator  # noqa: E402
 
 @dataclass
 class PlotStyle:
-    """Style overrides applied by the plotting helpers.
-
-    A field set to ``None`` means *use the function's default*.
-    """
-
     title: str | None = None
     xlabel: str | None = None
     ylabel: str | None = None
@@ -38,16 +33,14 @@ class PlotStyle:
     figsize: tuple[float, float] = (7.5, 4.5)
     dpi: int = 150
     font_size: int = 12
-    # Axis range overrides — any of the four can be left as None to let
-    # matplotlib auto-scale that bound. Half-open ranges work too
-    # (e.g. ymin=0, ymax=None pins the floor but lets the top float).
     xmin: float | None = None
     xmax: float | None = None
     ymin: float | None = None
     ymax: float | None = None
-    # Multi-panel plot accents (used by plot_pca / plot_clusters):
     accent_color: str | None = None
     cmap: str | None = None
+    open_frame: bool = False
+    show_average: bool = False
 
 
 def _apply_rc(style: PlotStyle) -> None:
@@ -69,6 +62,115 @@ def _save(fig, path: str | Path, dpi: int) -> None:
     plt.close(fig)
 
 
+def _apply_open_frame(ax) -> None:
+    ax.spines["top"].set_visible(False)
+    ax.spines["right"].set_visible(False)
+
+
+def _apply_publication_ticks(ax, open_frame: bool = False) -> None:
+    for axis in (ax.xaxis, ax.yaxis):
+        axis.set_major_locator(
+            MaxNLocator(nbins="auto", steps=[1, 2, 2.5, 5, 10], prune=None)
+        )
+        axis.set_minor_locator(AutoMinorLocator())
+    ax.tick_params(which="both", direction="in", top=False, right=False)
+    ax.tick_params(which="major", length=5, width=0.9)
+    ax.tick_params(which="minor", length=2.5, width=0.6)
+    if open_frame:
+        _apply_open_frame(ax)
+
+
+def _apply_axis_limits(ax, style: PlotStyle) -> None:
+    if style.xmin is not None or style.xmax is not None:
+        cur_lo, cur_hi = ax.get_xlim()
+        ax.set_xlim(
+            style.xmin if style.xmin is not None else cur_lo,
+            style.xmax if style.xmax is not None else cur_hi,
+        )
+    if style.ymin is not None or style.ymax is not None:
+        cur_lo, cur_hi = ax.get_ylim()
+        ax.set_ylim(
+            style.ymin if style.ymin is not None else cur_lo,
+            style.ymax if style.ymax is not None else cur_hi,
+        )
+
+
+def _set_robust_ylim(ax, y_arr: np.ndarray, style: PlotStyle) -> None:
+    if y_arr.size == 0:
+        return
+    p1, p99 = float(np.percentile(y_arr, 1)), float(np.percentile(y_arr, 99))
+    span = p99 - p1
+    if span < 1e-12:
+        return
+    pad = span * 0.10
+    lo = p1 - pad
+    hi = p99 + pad
+    if p1 >= 0 and p1 <= max(p99, 0.0) * 0.05:
+        lo = 0
+    if style.ymin is None:
+        ax.set_ylim(bottom=lo)
+    if style.ymax is None:
+        ax.set_ylim(top=hi)
+
+
+def _force_boundary_ticks_x(ax, x_min: float, x_max: float) -> None:
+    import math
+
+    if not (np.isfinite(x_min) and np.isfinite(x_max)):
+        return
+    span = x_max - x_min
+    if span < 1e-12:
+        return
+
+    lo, hi = ax.get_xlim()
+    auto = sorted(t for t in ax.get_xticks() if lo - 1e-9 <= t <= hi + 1e-9)
+
+    if len(auto) >= 2:
+        step = auto[1] - auto[0]
+    else:
+        step = span / 5.0
+    if step <= 0:
+        return
+
+    nice_min = math.floor(x_min / step) * step
+    nice_max = math.ceil(x_max / step) * step
+
+    tol = step * 0.5
+    auto = [t for t in auto if abs(t - nice_min) > tol and abs(t - nice_max) > tol]
+    ticks = sorted({float(nice_min), float(nice_max), *auto})
+
+    ax.set_xlim(min(nice_min, lo), max(nice_max, hi))
+    ax.set_xticks(ticks)
+
+
+def _finalize_axes(ax, x_arr, y_arr, style: PlotStyle) -> None:
+    if style.ymin is None and y_arr.size:
+        _set_robust_ylim(ax, y_arr, style)
+    _apply_publication_ticks(ax, open_frame=style.open_frame)
+    if x_arr.size:
+        _force_boundary_ticks_x(ax, float(x_arr.min()), float(x_arr.max()))
+    _apply_axis_limits(ax, style)
+    if style.grid:
+        ax.grid(alpha=0.3)
+
+
+def _draw_avg_bar(ax_bar, avg_labels: list[str], avg_values: list[float],
+                  bar_colors: list[str], style: PlotStyle) -> None:
+    x_pos = np.arange(len(avg_labels))
+    bars = ax_bar.bar(x_pos, avg_values, color=bar_colors, alpha=0.85, width=0.5)
+    ax_bar.set_xticks(x_pos)
+    ax_bar.set_xticklabels(avg_labels, rotation=30, ha="right", fontsize=style.font_size - 1)
+    ax_bar.set_ylabel("Average")
+    ax_bar.set_title("Average")
+    for bar, val in zip(bars, avg_values, strict=False):
+        ax_bar.text(bar.get_x() + bar.get_width() / 2, bar.get_height(),
+                    f"{val:.1f}", ha="center", va="bottom", fontsize=style.font_size - 2)
+    if style.grid:
+        ax_bar.grid(axis="y", alpha=0.3)
+    if style.open_frame:
+        _apply_open_frame(ax_bar)
+
+
 def plot_line(
     x: np.ndarray,
     y: np.ndarray,
@@ -81,9 +183,17 @@ def plot_line(
     style = style or PlotStyle()
     _apply_rc(style)
 
-    fig, ax = plt.subplots(figsize=style.figsize)
+    x_arr = np.asarray(x)
+    y_arr = np.asarray(y)
+
+    if style.show_average and y_arr.size:
+        fig, (ax, ax_bar) = plt.subplots(1, 2, figsize=(style.figsize[0] + 2.5, style.figsize[1]),
+                                         gridspec_kw={"width_ratios": [4, 1]})
+    else:
+        fig, ax = plt.subplots(figsize=style.figsize)
+
     ax.plot(
-        x, y,
+        x_arr, y_arr,
         linewidth=style.linewidth,
         color=style.color,
         label=style.legend_label,
@@ -92,18 +202,17 @@ def plot_line(
     ax.set_xlabel(style.xlabel or default_xlabel)
     ax.set_ylabel(style.ylabel or default_ylabel)
     ax.set_title(style.title or default_title)
-    _apply_axis_limits(ax, style)
-    x_arr = np.asarray(x)
-    y_arr = np.asarray(y)
-    if style.ymin is None and y_arr.size:
-        _set_robust_ylim(ax, y_arr, style)
-    _apply_publication_ticks(ax)
-    if x_arr.size:
-        _force_boundary_ticks_x(ax, float(x_arr.min()), float(x_arr.max()))
-    if style.grid:
-        ax.grid(alpha=0.3)
+
+    _finalize_axes(ax, x_arr, y_arr, style)
+
     if style.show_legend or style.legend_label:
-        ax.legend(loc="best", frameon=True)
+        ax.legend(loc="best", frameon=not style.open_frame)
+
+    if style.show_average and y_arr.size:
+        lbl = style.legend_label or "System"
+        c = style.color or "#1f77b4"
+        _draw_avg_bar(ax_bar, [lbl], [float(np.mean(y_arr))], [c], style)
+
     _save(fig, output_path, style.dpi)
 
 
@@ -118,36 +227,28 @@ def plot_lines_multi(
     cmap: str | None = None,
     colors: list[str | None] | None = None,
 ) -> None:
-    """Plot several line curves on a single axis with distinct colors + legend.
-
-    Used by multi-system comparison runs (WT vs mutants etc.). Each curve
-    is one ``(x, y)`` pair; ``labels`` is its display name in the legend.
-
-    Color resolution per curve, in order: explicit ``colors[i]`` (any
-    matplotlib color spec, ``None`` to fall back) → the supplied / styled
-    colormap → tab10 default. The fallback keeps multi-system runs
-    readable when only some systems have a colour assigned.
-    """
     style = style or PlotStyle()
     _apply_rc(style)
 
     cmap_name = cmap or style.cmap or "tab10"
     palette = plt.get_cmap(cmap_name)
 
-    # If every curve was passed the SAME color (a common consequence of
-    # leaving the frontend's per-system colour picker at its default), the
-    # plot would look like a single line. Fall back to the colormap so
-    # each curve still gets a distinct hue.
     if colors and len(curves) > 1:
         non_null = [c for c in colors if c]
         if len(set(non_null)) <= 1:
             colors = None
 
-    fig, ax = plt.subplots(figsize=style.figsize)
+    if style.show_average and curves:
+        fig, (ax, ax_bar) = plt.subplots(1, 2, figsize=(style.figsize[0] + 2.5, style.figsize[1]),
+                                         gridspec_kw={"width_ratios": [4, 1]})
+    else:
+        fig, ax = plt.subplots(figsize=style.figsize)
+
+    all_y_parts: list[np.ndarray] = []
+    resolved_colors: list[str] = []
     x_min = float("inf")
     x_max = float("-inf")
-    y_min = float("inf")
-    y_max = float("-inf")
+
     for i, ((cx, cy), label) in enumerate(zip(curves, labels, strict=False)):
         cx_arr = np.asarray(cx)
         cy_arr = np.asarray(cy)
@@ -163,138 +264,27 @@ def plot_lines_multi(
             color=color,
             label=label,
         )
+        all_y_parts.append(cy_arr)
+        resolved_colors.append(color if isinstance(color, str) else f"C{i}")
         x_min = min(x_min, float(cx_arr.min()))
         x_max = max(x_max, float(cx_arr.max()))
-        y_min = min(y_min, float(cy_arr.min()))
-        y_max = max(y_max, float(cy_arr.max()))
 
     ax.margins(x=0, y=0)
     ax.set_xlabel(style.xlabel or default_xlabel)
     ax.set_ylabel(style.ylabel or default_ylabel)
     ax.set_title(style.title or default_title)
-    _apply_axis_limits(ax, style)
-    if style.ymin is None and y_min != float("inf"):
-        all_y = np.concatenate([np.asarray(cy) for (_, cy) in curves])
-        _set_robust_ylim(ax, all_y, style)
-    _apply_publication_ticks(ax)
-    if x_min != float("inf"):
-        _force_boundary_ticks_x(ax, x_min, x_max)
-    if style.grid:
-        ax.grid(alpha=0.3)
-    ax.legend(loc="best", frameon=True)
+
+    all_y = np.concatenate(all_y_parts) if all_y_parts else np.array([])
+    x_arr_range = np.array([x_min, x_max]) if x_min != float("inf") else np.array([])
+    _finalize_axes(ax, x_arr_range, all_y, style)
+
+    ax.legend(loc="best", frameon=not style.open_frame)
+
+    if style.show_average and all_y_parts:
+        avgs = [float(np.mean(yp)) for yp in all_y_parts]
+        _draw_avg_bar(ax_bar, list(labels), avgs, resolved_colors, style)
+
     _save(fig, output_path, style.dpi)
-
-
-def _set_robust_ylim(ax, y_arr: np.ndarray, style: PlotStyle) -> None:
-    """Set y-axis limits that ignore outlier spikes.
-
-    Uses the 1st–99th percentile range with 10 % padding so a single
-    extreme frame doesn't compress the entire plot.  When the data sits
-    near zero (RMSD / RMSF / H-bond) the floor is clamped to 0 instead.
-    """
-    if y_arr.size == 0:
-        return
-    p1, p99 = float(np.percentile(y_arr, 1)), float(np.percentile(y_arr, 99))
-    span = p99 - p1
-    if span < 1e-12:
-        # Nearly constant — let matplotlib auto-scale.
-        return
-    pad = span * 0.10
-    lo = p1 - pad
-    hi = p99 + pad
-    # Clamp to 0 only when data actually starts near zero (RMSD, RMSF,
-    # H-bond where values range 0..N).  For SASA / Rg the baseline is
-    # high (e.g. 9000+) — clamping to 0 would compress all the detail.
-    if p1 >= 0 and p1 <= max(p99, 0.0) * 0.05:
-        lo = 0
-    if style.ymin is None:
-        ax.set_ylim(bottom=lo)
-    if style.ymax is None:
-        ax.set_ylim(top=hi)
-
-
-def _force_boundary_ticks_x(ax, x_min: float, x_max: float) -> None:
-    """Guarantee the x-axis labels the data start AND end, snapped to a
-    clean integer / "nice" multiple of the auto tick interval.
-
-    matplotlib's `MaxNLocator` picks tidy round numbers in the middle of
-    the range (e.g. 120, 140, 160, 180 for data spanning 100–200) but
-    skips the actual data boundaries. We want the user to see the run's
-    actual start and end. Snapping the boundary labels to the same step
-    size as the auto-picked ticks keeps the formatting consistent —
-    100.15 → ``100``, 199.15 → ``200`` — instead of leaking decimals
-    into otherwise integer-looking ticks.
-    """
-    import math
-
-    if not (np.isfinite(x_min) and np.isfinite(x_max)):
-        return
-    span = x_max - x_min
-    if span < 1e-12:
-        return
-
-    lo, hi = ax.get_xlim()
-    auto = sorted(t for t in ax.get_xticks() if lo - 1e-9 <= t <= hi + 1e-9)
-
-    # Snap step: use the auto tick spacing when matplotlib's locator gave
-    # us at least two ticks, otherwise fall back to ~5 % of the data span.
-    if len(auto) >= 2:
-        step = auto[1] - auto[0]
-    else:
-        step = span / 5.0
-    if step <= 0:
-        return
-
-    nice_min = math.floor(x_min / step) * step
-    nice_max = math.ceil(x_max / step) * step
-
-    # Drop any auto tick that's within half a step of the new boundaries
-    # so the two don't collide / double-label.
-    tol = step * 0.5
-    auto = [t for t in auto if abs(t - nice_min) > tol and abs(t - nice_max) > tol]
-    ticks = sorted({float(nice_min), float(nice_max), *auto})
-
-    # Extend the axis to the snapped boundaries so the labels sit exactly
-    # at the spine edges; the gap is tiny (≤ half a step) and invisible.
-    ax.set_xlim(min(nice_min, lo), max(nice_max, hi))
-    ax.set_xticks(ticks)
-
-
-def _apply_publication_ticks(ax) -> None:
-    """Major ticks include the axis boundaries; minor ticks fill the gaps.
-
-    matplotlib's default ``AutoLocator`` prunes ticks at the axis edges
-    when it thinks they'd collide with adjacent axis labels — which is
-    why a snug-fit RMSD plot misses the leading "0" on the time axis.
-    ``MaxNLocator(prune=None)`` keeps the boundary tick; ``AutoMinorLocator``
-    adds the in-between tick marks that match a publication aesthetic.
-    """
-    for axis in (ax.xaxis, ax.yaxis):
-        axis.set_major_locator(
-            MaxNLocator(nbins="auto", steps=[1, 2, 2.5, 5, 10], prune=None)
-        )
-        axis.set_minor_locator(AutoMinorLocator())
-    # Inward ticks on the left + bottom axes only — no mirrored ticks
-    # on the top / right spines.
-    ax.tick_params(which="both", direction="in", top=False, right=False)
-    ax.tick_params(which="major", length=5, width=0.9)
-    ax.tick_params(which="minor", length=2.5, width=0.6)
-
-
-def _apply_axis_limits(ax, style: PlotStyle) -> None:
-    """Pin any of the four bounds the user set, leave the rest auto-scaled."""
-    if style.xmin is not None or style.xmax is not None:
-        cur_lo, cur_hi = ax.get_xlim()
-        ax.set_xlim(
-            style.xmin if style.xmin is not None else cur_lo,
-            style.xmax if style.xmax is not None else cur_hi,
-        )
-    if style.ymin is not None or style.ymax is not None:
-        cur_lo, cur_hi = ax.get_ylim()
-        ax.set_ylim(
-            style.ymin if style.ymin is not None else cur_lo,
-            style.ymax if style.ymax is not None else cur_hi,
-        )
 
 
 def plot_pca(
@@ -303,7 +293,6 @@ def plot_pca(
     output_path: str | Path,
     style: PlotStyle | None = None,
 ) -> None:
-    """Scree (bar + cumulative) on the left, PC1-vs-PC2 scatter on the right."""
     style = style or PlotStyle()
     _apply_rc(style)
 
@@ -325,10 +314,14 @@ def plot_pca(
     ax1.set_xticks(idx)
     if style.grid:
         ax1.grid(axis="y", alpha=0.3)
+    if style.open_frame:
+        _apply_open_frame(ax1)
     ax1b = ax1.twinx()
     ax1b.plot(idx, cum, marker="o", color=cum_color, linewidth=style.linewidth, label="cumulative")
     ax1b.set_ylim(0, 1.05)
     ax1b.set_ylabel("Cumulative variance")
+    if style.open_frame:
+        ax1b.spines["top"].set_visible(False)
 
     if projections.shape[1] >= 2:
         sc = ax2.scatter(
@@ -356,6 +349,8 @@ def plot_pca(
         ax2.set_title("Projection onto PC1")
     if style.grid:
         ax2.grid(alpha=0.3)
+    if style.open_frame:
+        _apply_open_frame(ax2)
 
     if style.title:
         fig.suptitle(style.title)
@@ -371,7 +366,6 @@ def plot_clusters(
     output_path: str | Path,
     style: PlotStyle | None = None,
 ) -> None:
-    """Scatter of cluster assignments in PC space with centers + representatives marked."""
     style = style or PlotStyle()
     _apply_rc(style)
 
@@ -410,7 +404,7 @@ def plot_clusters(
         ax.set_xlabel(style.xlabel or "PC1")
         ax.set_ylabel(style.ylabel or "PC2")
         if ax.get_legend_handles_labels()[0]:
-            ax.legend(loc="best", frameon=True)
+            ax.legend(loc="best", frameon=not style.open_frame)
     else:
         ax.scatter(
             np.arange(len(projections)), projections[:, 0],
@@ -422,4 +416,6 @@ def plot_clusters(
     ax.set_title(style.title or f"K-means clusters (k={k})")
     if style.grid:
         ax.grid(alpha=0.3)
+    if style.open_frame:
+        _apply_open_frame(ax)
     _save(fig, output_path, style.dpi)
