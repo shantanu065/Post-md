@@ -1,0 +1,89 @@
+[build-system]
+requires = ["hatchling>=1.18"]
+build-backend = "hatchling.build"
+
+[project]
+name = "post-md"
+version = "0.1.0.dev0"
+description = "Open-source toolkit for rapid analysis of molecular dynamics trajectories — PCA, structural clustering, custom AMBER + GROMACS I/O."
+readme = "README.md"
+requires-python = ">=3.10"
+license = { text = "MIT" }
+authors = [{ name = "Post_MD contributors" }]
+keywords = ["molecular dynamics", "trajectory", "pca", "clustering", "amber", "gromacs", "computational biology"]
+classifiers = [
+    "Development Status :: 2 - Pre-Alpha",
+    "Intended Audience :: Science/Research",
+    "License :: OSI Approved :: MIT License",
+    "Operating System :: OS Independent",
+    "Programming Language :: Python :: 3",
+    "Programming Language :: Python :: 3.10",
+    "Programming Language :: Python :: 3.11",
+    "Programming Language :: Python :: 3.12",
+    "Programming Language :: Python :: 3.13",
+    "Topic :: Scientific/Engineering :: Bio-Informatics",
+    "Topic :: Scientific/Engineering :: Chemistry",
+]
+dependencies = [
+    "numpy>=1.24",
+    "scipy>=1.10",
+    "typer>=0.9",
+    "rich>=13.0",
+    "matplotlib>=3.7",
+]
+
+[project.optional-dependencies]
+dev = [
+    "pytest>=7.4",
+    "pytest-cov>=4.1",
+    "ruff>=0.1",
+    "mypy>=1.7",
+]
+web = [
+    "fastapi>=0.110",
+    "uvicorn[standard]>=0.27",
+    "python-multipart>=0.0.9",
+    "jinja2>=3.1",
+]
+
+[project.scripts]
+post-md = "post_md.cli.main:app"
+
+[project.urls]
+Homepage = "https://github.com/shantanu065/Post-md"
+Repository = "https://github.com/shantanu065/Post-md"
+
+[tool.hatch.build.targets.wheel]
+packages = ["src/post_md"]
+
+[tool.ruff]
+line-length = 100
+target-version = "py310"
+
+[tool.ruff.lint]
+select = ["E", "F", "W", "I", "B", "UP", "NPY"]
+ignore = ["E501"]  # let formatter handle line length
+
+[tool.ruff.lint.flake8-bugbear]
+# FastAPI's dependency-injection helpers are designed to be used as defaults.
+extend-immutable-calls = [
+    "fastapi.File",
+    "fastapi.Form",
+    "fastapi.Body",
+    "fastapi.Depends",
+    "fastapi.Header",
+    "fastapi.Cookie",
+    "fastapi.Query",
+    "fastapi.Path",
+]
+
+[tool.mypy]
+python_version = "3.10"
+strict = false
+warn_unused_ignores = true
+warn_redundant_casts = true
+files = ["src/post_md"]
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+addopts = "-ra"

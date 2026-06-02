@@ -1,0 +1,20 @@
+# Normalise line endings: store text as LF in the repo, check out native.
+* text=auto eol=lf
+
+# Explicit text files
+*.py    text eol=lf
+*.toml  text eol=lf
+*.md    text eol=lf
+*.yml   text eol=lf
+*.yaml  text eol=lf
+*.cfg   text eol=lf
+*.txt   text eol=lf
+
+# Binary / data — never normalise
+*.nc        binary
+*.prmtop    binary
+*.parm7     binary
+*.xtc       binary
+*.trr       binary
+*.npz       binary
+*.png       binary

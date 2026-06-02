@@ -1,0 +1,14 @@
+Post_MD
+=======
+
+Post_MD is released under the MIT License — see LICENSE.
+
+Trademark notices for third-party file formats referenced by this project:
+
+  * AMBER is a registered trademark of the University of California.
+  * GROMACS is a registered trademark of the Royal Institute of Technology
+    (Sweden).
+
+Post_MD reads these formats by way of pure-Python parsers written from
+public specifications and is not affiliated with or endorsed by either
+project.

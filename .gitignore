@@ -1,0 +1,101 @@
+#############################################
+# Post_MD — Git ignore rules
+#############################################
+
+# ----------------------------------------------------------------------
+# Python bytecode & C extensions
+# ----------------------------------------------------------------------
+__pycache__/
+*.py[cod]
+*$py.class
+*.so
+.Python
+
+# ----------------------------------------------------------------------
+# Build, packaging & distribution
+# ----------------------------------------------------------------------
+build/
+dist/
+sdist/
+wheels/
+*.egg
+*.egg-info/
+.eggs/
+pip-wheel-metadata/
+MANIFEST
+
+# ----------------------------------------------------------------------
+# Virtual environments
+# ----------------------------------------------------------------------
+.venv*/
+venv/
+env/
+ENV/
+post-md/            # local venv from README (python -m venv post-md)
+.python-version
+
+# ----------------------------------------------------------------------
+# Testing, linting & type-checking caches
+# ----------------------------------------------------------------------
+.pytest_cache/
+.mypy_cache/
+.ruff_cache/
+.tox/
+.nox/
+.coverage
+.coverage.*
+coverage.xml
+htmlcov/
+
+# ----------------------------------------------------------------------
+# Jupyter / IPython
+# ----------------------------------------------------------------------
+.ipynb_checkpoints/
+profile_default/
+ipython_config.py
+
+# ----------------------------------------------------------------------
+# Environment & secrets
+# ----------------------------------------------------------------------
+.env
+.env.*
+*.pem
+*.key
+
+# ----------------------------------------------------------------------
+# Editors & OS cruft
+# ----------------------------------------------------------------------
+.idea/
+.vscode/
+*.swp
+*.swo
+*~
+.DS_Store
+Thumbs.db
+
+# ----------------------------------------------------------------------
+# Tooling-local config (not part of the project)
+# ----------------------------------------------------------------------
+.claude/
+
+# ----------------------------------------------------------------------
+# MD trajectory & analysis artefacts produced by local runs
+# (data committed under tests/ is kept via the negation below)
+# ----------------------------------------------------------------------
+post_md_web/
+*.npz
+*.csv
+*.dat
+*.xvg
+*.png
+*.gro
+reps.pdb
+*.log
+
+# Reader sidecar indices
+*.trr.idx
+*.xtc.idx
+
+# Keep anything intentionally committed under tests/data/
+!tests/data/
+!tests/data/**

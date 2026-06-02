@@ -1,0 +1,656 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Post MD — MD Trajectory Analysis</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet">
+<style>
+:root{
+  --text:#111318;--text-2:#3d4455;--muted:#6c7281;--dim:#9ea3b0;
+  --border:#e1e4ea;--accent:#2563eb;--accent-hover:#1d4ed8;--accent-soft:rgba(37,99,235,0.07);
+  --danger:#dc2626;--danger-soft:#fef2f2;--ok:#059669;--ok-soft:#ecfdf5;
+  --hero-bg:#0f172a;
+  --sans:"Inter",system-ui,-apple-system,sans-serif;
+  --mono:"JetBrains Mono",ui-monospace,monospace;
+}
+*{box-sizing:border-box;margin:0;padding:0}
+html{height:100%;scroll-behavior:smooth}
+body{min-height:100%;background:#fff;color:var(--text);font-family:var(--sans);font-size:14px;line-height:1.55;-webkit-font-smoothing:antialiased}
+
+/* ── Hero Banner ── */
+.hero{position:relative;background:var(--hero-bg);overflow:hidden}
+.hero-bg{position:absolute;inset:0;opacity:0.18;pointer-events:none}
+.hero-bg svg{width:100%;height:100%}
+.hero-nav{
+  position:relative;display:flex;align-items:center;gap:0.5rem;
+  max-width:1100px;margin:0 auto;padding:0.8rem 2rem;
+}
+.hero-nav .brand{
+  display:flex;align-items:center;gap:0.5rem;
+  font-weight:700;font-size:1rem;color:#fff;letter-spacing:-0.02em;
+}
+.hero-nav .brand i{
+  width:26px;height:26px;background:var(--accent);border-radius:6px;
+  display:inline-flex;align-items:center;justify-content:center;
+  font-style:normal;font-weight:800;font-size:0.75rem;color:#fff;
+}
+.hero-nav .spacer{flex:1}
+.hero-nav .ver{font-family:var(--mono);font-size:0.7rem;color:rgba(255,255,255,0.35);border:1px solid rgba(255,255,255,0.1);padding:0.1rem 0.5rem;border-radius:99px}
+.hero-body{
+  position:relative;max-width:1100px;margin:0 auto;
+  padding:2.5rem 2rem 2.8rem;
+}
+.hero-body h1{margin:0;font-size:2.8rem;font-weight:800;color:#fff;letter-spacing:-0.03em;line-height:1.1}
+.hero-body p{margin:0.7rem 0 0;color:rgba(255,255,255,0.55);font-size:0.95rem;max-width:600px;line-height:1.5}
+
+/* ── Content ── */
+.content{max-width:1100px;margin:0 auto;padding:0 2rem 4rem}
+
+/* ── Section ── */
+.section{padding:2rem 0;border-bottom:1px solid var(--border)}
+.section:last-child{border-bottom:none}
+/* Upload (left) + Plot-from-data (right), side by side; stacks on narrow screens. */
+.top-row{display:grid;grid-template-columns:minmax(0,1.55fr) minmax(0,1fr);gap:0 2.5rem;align-items:start;border-bottom:1px solid var(--border)}
+.top-row>.section{border-bottom:none}
+.top-row>#plotdata-section{border-left:1px solid var(--border);padding-left:2.5rem}
+@media(max-width:900px){.top-row{grid-template-columns:1fr;gap:0}.top-row>#plotdata-section{border-left:none;padding-left:0;border-top:1px solid var(--border)}}
+.section-title{font-size:1.2rem;font-weight:700;letter-spacing:-0.01em;margin-bottom:0.3rem}
+.section-desc{color:var(--text-2);font-size:0.88rem;margin-bottom:1.2rem;max-width:650px}
+
+.hidden-section{display:none}
+.hidden-section.visible{display:block;animation:fadeUp 300ms ease-out}
+@keyframes fadeUp{from{opacity:0;transform:translateY(16px)}to{opacity:1;transform:translateY(0)}}
+
+/* ── Forms ── */
+input[type="text"],input[type="number"],select,textarea{
+  font-family:var(--sans);font-size:0.88rem;width:100%;
+  padding:0.5rem 0;border:none;border-bottom:1px solid var(--border);
+  background:transparent;color:var(--text);transition:border-color 120ms;
+}
+input:focus,select:focus,textarea:focus{outline:none;border-bottom-color:var(--accent)}
+input::placeholder{color:var(--dim)}
+input.mono,.topology-input,.trajectory-input{font-family:var(--mono);font-size:0.82rem}
+select{
+  appearance:none;
+  background-image:url("data:image/svg+xml,%3Csvg width='10' height='6' viewBox='0 0 10 6' fill='none' xmlns='http://www.w3.org/2000/svg'%3E%3Cpath d='M1 1L5 5L9 1' stroke='%236c7281' stroke-width='1.5' stroke-linecap='round' stroke-linejoin='round'/%3E%3C/svg%3E");
+  background-repeat:no-repeat;background-position:right 0 center;padding-right:1.5rem;
+}
+input[type="checkbox"]{width:16px;height:16px;accent-color:var(--accent);cursor:pointer}
+input[type="color"]{width:32px;height:28px;padding:0;border:none;border-bottom:1px solid var(--border);border-radius:0;cursor:pointer}
+label{display:block;font-size:0.82rem;color:var(--text-2);font-weight:500}
+label>input,label>select{margin-top:0.2rem}
+label small{color:var(--dim);font-size:0.76rem;font-weight:400}
+.grid-2,.grid-3{display:grid;gap:0.75rem 1rem}
+.grid-2{grid-template-columns:1fr 1fr}
+.grid-3{grid-template-columns:1fr 1fr 1fr}
+@media(max-width:768px){.grid-2,.grid-3{grid-template-columns:1fr}}
+
+/* ── Buttons ── */
+button{
+  font-family:var(--sans);font-size:0.86rem;font-weight:600;
+  padding:0.5rem 1.1rem;border-radius:0;border:none;
+  background:transparent;color:var(--text);cursor:pointer;
+  transition:all 100ms;display:inline-flex;align-items:center;gap:0.4rem;
+}
+button:hover{background:var(--accent-soft)}
+button:active{transform:translateY(1px)}
+button:focus-visible{outline:2px solid var(--accent);outline-offset:2px}
+button.primary{background:var(--accent);color:#fff}
+button.primary:hover{background:var(--accent-hover)}
+button.ghost{color:var(--muted)}
+button.ghost:hover{background:rgba(0,0,0,0.04);color:var(--text)}
+button.danger-ghost{color:var(--danger)}
+button.danger-ghost:hover{background:var(--danger-soft)}
+button.sm{padding:0.3rem 0.7rem;font-size:0.8rem}
+button.lg{padding:0.65rem 1.6rem;font-size:0.92rem}
+
+/* ── System row ── */
+.sys-row{padding:1rem 0;border-bottom:1px solid var(--border)}
+.sys-row:last-child{border-bottom:none}
+.sys-row-head{display:flex;align-items:center;gap:0.6rem;margin-bottom:0.8rem;flex-wrap:wrap}
+.sys-row-head input[type="text"]{max-width:200px;font-weight:600}
+.file-group{margin-bottom:0.5rem}
+.file-group label{font-size:0.76rem;font-weight:600;color:var(--muted);text-transform:uppercase;letter-spacing:0.04em;margin-bottom:0.2rem;display:block}
+.file-group small{font-weight:400;text-transform:none;letter-spacing:0;color:var(--dim)}
+.path-row{display:flex;gap:0.35rem;align-items:stretch}
+.path-row input{flex:1;min-width:0}
+.path-row button{white-space:nowrap}
+.sys-stale{color:var(--danger);font-size:0.82rem;background:var(--danger-soft);padding:0.4rem 0.7rem;margin-top:0.5rem}
+.prepare-status{font-family:var(--mono);font-size:0.8rem;color:var(--muted);margin-top:0.3rem}
+.prepare-status.error{color:var(--danger)}
+
+/* ── File browser ── */
+.file-browser{margin-top:0.4rem;background:#f6f7f9;font-family:var(--mono);font-size:0.82rem;overflow:hidden}
+.fb-header{display:flex;justify-content:space-between;align-items:center;padding:0.4rem 0.7rem;border-bottom:1px solid var(--border)}
+.fb-path{font-weight:500;overflow-wrap:anywhere;color:var(--accent)}
+.fb-entries{max-height:260px;overflow-y:auto}
+.fb-entry{display:flex;gap:0.5rem;align-items:center;padding:0.3rem 0.7rem;cursor:pointer}
+.fb-entry:hover{background:var(--accent-soft)}
+.fb-entry .fb-icon{width:1.2em;text-align:center}
+.fb-entry .fb-size{margin-left:auto;color:var(--dim);font-size:0.75rem}
+.fb-empty{padding:0.7rem;color:var(--muted);font-style:italic}
+.fb-go{display:flex;gap:0.3rem;padding:0.4rem 0.7rem;border-top:1px solid var(--border)}
+.fb-go input{flex:1;font-size:0.82rem}
+.fb-go button{padding:0.25rem 0.6rem;font-size:0.8rem}
+
+/* ── Pills ── */
+.pills{display:flex;flex-wrap:wrap;gap:0.35rem;margin-top:0.6rem}
+.pill{font-size:0.76rem;font-family:var(--mono);padding:0.15rem 0.55rem;border-left:3px solid var(--dim);color:var(--muted)}
+.pill.ok{border-left-color:var(--ok);color:var(--ok)}
+.pill.stale{border-left-color:var(--danger);color:var(--danger)}
+
+/* ── Analysis blocks ── */
+.analysis-block{border-bottom:1px solid var(--border);background:transparent}
+.analysis-block:last-child{border-bottom:none}
+.analysis-block.expanded{background:var(--accent-soft)}
+.analysis-block>header{display:flex;align-items:center;gap:0.65rem;padding:0.6rem 0;cursor:pointer;user-select:none}
+.analysis-block>header .title{font-weight:600;font-size:0.9rem}
+.analysis-block>header .desc{color:var(--muted);font-size:0.82rem}
+.analysis-block .params{display:none;padding:0.7rem 0 1rem;border-top:1px solid rgba(0,0,0,0.06)}
+.analysis-block.expanded .params{display:block}
+details{background:#f6f7f9;padding:0.5rem 0.75rem;margin-top:0.6rem}
+details>summary{cursor:pointer;font-weight:500;font-size:0.84rem;color:var(--muted);list-style:none}
+details>summary::before{content:"\25B8";display:inline-block;margin-right:0.4rem;transition:transform 120ms}
+details[open]>summary::before{transform:rotate(90deg)}
+details>div{margin-top:0.5rem}
+
+/* ── Run bar ── */
+.run-bar{display:flex;align-items:center;gap:0.8rem;flex-wrap:wrap;padding:1rem 0 0;margin-top:0.5rem}
+.run-bar .toggle{display:inline-flex;align-items:center;gap:0.3rem;color:var(--muted);font-size:0.82rem}
+.run-status{font-family:var(--mono);font-size:0.82rem;color:var(--muted)}
+.run-status.error{color:var(--danger)}
+
+/* ── Results ── */
+.result-block{padding:1.2rem 0;border-bottom:1px solid var(--border)}
+.result-block:last-child{border-bottom:none}
+.result-block h4{font-size:0.78rem;font-weight:700;text-transform:uppercase;letter-spacing:0.08em;color:var(--accent);margin-bottom:0.5rem}
+.result-block img{display:block;max-width:100%;margin-top:0.5rem;cursor:zoom-in;background:#fff}
+.result-block p{font-size:0.86rem;color:var(--text-2);margin:0.25rem 0}
+.result-block a{color:var(--accent);text-decoration:none}
+.result-block a:hover{text-decoration:underline}
+.result-block strong{color:var(--text)}
+.result-block pre.json{font-family:var(--mono);font-size:0.8rem;max-height:220px;overflow:auto;background:#f6f7f9;padding:0.6rem 0.8rem}
+
+/* ── Progress ── */
+.progress-wrap{margin-bottom:1rem}
+.progress-bar-outer{height:3px;background:#e5e7eb;overflow:hidden;margin-top:0.4rem}
+.progress-bar-inner{height:100%;background:var(--accent);transition:width 300ms ease;width:0%}
+.progress-text{font-family:var(--mono);font-size:0.82rem;color:var(--muted);margin-top:0.35rem}
+
+/* ── Lightbox ── */
+.lightbox{position:fixed;inset:0;z-index:1000;background:rgba(0,0,0,0.75);backdrop-filter:blur(6px);display:none;align-items:center;justify-content:center;padding:2rem}
+.lightbox.open{display:flex}
+.lightbox img{max-width:95vw;max-height:90vh;box-shadow:0 12px 40px rgba(0,0,0,0.5);background:#fff}
+.lightbox .lb-close{position:absolute;top:1rem;right:1.2rem;background:rgba(0,0,0,0.5);color:#fff;width:36px;height:36px;font-size:1.3rem}
+
+/* ── Status strip ── */
+.status-strip{position:fixed;left:0;right:0;bottom:0;height:26px;display:flex;align-items:center;justify-content:center;font-family:var(--mono);font-size:0.76rem;background:#fff;border-top:1px solid var(--border);color:var(--dim);z-index:100}
+.status-strip[data-level="ok"]{color:var(--ok)}
+.status-strip[data-level="error"]{color:var(--danger);background:var(--danger-soft)}
+.status-strip[data-level="running"]{color:var(--accent)}
+
+.spacer{flex:1}
+@media(max-width:768px){
+  .hero-body h1{font-size:2rem}
+  .hero-body{padding:1.8rem 1.2rem 2rem}
+  .hero-nav{padding:0.6rem 1.2rem}
+  .content{padding:0 1rem 4rem}
+}
+</style>
+</head>
+<body>
+
+<!-- ━━━ Hero Banner ━━━ -->
+<div class="hero">
+  <div class="hero-bg" aria-hidden="true">
+    <svg viewBox="0 0 1200 260" preserveAspectRatio="none" xmlns="http://www.w3.org/2000/svg">
+      <g stroke="rgba(148,163,184,0.12)" stroke-width="0.5" fill="none">
+        <line x1="0" y1="50" x2="1200" y2="50"/><line x1="0" y1="100" x2="1200" y2="100"/>
+        <line x1="0" y1="150" x2="1200" y2="150"/><line x1="0" y1="200" x2="1200" y2="200"/>
+        <line x1="200" y1="0" x2="200" y2="260"/><line x1="400" y1="0" x2="400" y2="260"/>
+        <line x1="600" y1="0" x2="600" y2="260"/><line x1="800" y1="0" x2="800" y2="260"/>
+        <line x1="1000" y1="0" x2="1000" y2="260"/>
+      </g>
+      <polyline fill="none" stroke="#3b82f6" stroke-width="2" opacity="0.6" points="0,180 30,165 60,170 90,155 120,145 150,140 180,130 210,135 240,125 270,123 300,120 330,127 360,118 390,115 420,120 450,112 480,108 510,105 540,110 570,103 600,106 630,100 660,103 690,98 720,96 750,100 780,94 810,96 840,92 870,94 900,90 930,92 960,88 990,90 1020,86 1050,88 1080,85 1110,87 1140,84 1170,86 1200,83"/>
+      <polyline fill="none" stroke="#06b6d4" stroke-width="2" opacity="0.5" points="0,200 40,160 80,190 120,140 160,180 200,120 240,200 280,170 320,210 360,130 400,220 440,150 480,190 520,115 560,170 600,140 640,200 680,128 720,180 760,150 800,210 840,135 880,190 920,160 960,220 1000,140 1040,180 1080,155 1120,195 1160,165 1200,190"/>
+      <polyline fill="none" stroke="#22c55e" stroke-width="1.5" opacity="0.4" points="0,150 50,148 100,152 150,145 200,148 250,140 300,143 350,138 400,142 450,135 500,138 550,132 600,135 650,130 700,133 750,128 800,131 850,126 900,129 950,124 1000,127 1050,122 1100,125 1150,120 1200,123"/>
+      <polyline fill="none" stroke="#f59e0b" stroke-width="1.5" opacity="0.35" points="0,70 40,75 80,65 120,80 160,60 200,72 240,58 280,78 320,62 360,70 400,55 440,68 480,60 520,75 560,52 600,65 640,70 680,58 720,72 760,48 800,62 840,70 880,55 920,68 960,50 1000,63 1040,72 1080,58 1120,65 1160,60 1200,62"/>
+      <g transform="translate(40, 35)" opacity="0.3">
+        <line x1="0" y1="0" x2="20" y2="0" stroke="#3b82f6" stroke-width="2"/><text x="25" y="3.5" fill="#94a3b8" font-size="8" font-family="Inter,sans-serif">RMSD</text>
+        <line x1="0" y1="13" x2="20" y2="13" stroke="#06b6d4" stroke-width="2"/><text x="25" y="16.5" fill="#94a3b8" font-size="8" font-family="Inter,sans-serif">RMSF</text>
+        <line x1="0" y1="26" x2="20" y2="26" stroke="#22c55e" stroke-width="1.5"/><text x="25" y="29.5" fill="#94a3b8" font-size="8" font-family="Inter,sans-serif">Rg</text>
+        <line x1="0" y1="39" x2="20" y2="39" stroke="#f59e0b" stroke-width="1.5"/><text x="25" y="42.5" fill="#94a3b8" font-size="8" font-family="Inter,sans-serif">H-bond</text>
+      </g>
+      <g transform="translate(920,25)" opacity="0.15" stroke="#94a3b8" stroke-width="1" fill="none">
+        <path d="M0,50 L20,32 L45,45 L65,22 L90,37 L110,14 L135,28 L155,8 L180,22 L200,5"/>
+        <path d="M10,68 L30,55 L55,63 L75,40 L100,55 L120,32 L145,45 L165,28 L190,42 L210,18"/>
+        <circle cx="0" cy="50" r="2.5" fill="rgba(148,163,184,0.25)"/><circle cx="45" cy="45" r="2.5" fill="rgba(148,163,184,0.25)"/>
+        <circle cx="90" cy="37" r="2.5" fill="rgba(148,163,184,0.25)"/><circle cx="135" cy="28" r="2.5" fill="rgba(148,163,184,0.25)"/>
+        <circle cx="180" cy="22" r="2.5" fill="rgba(148,163,184,0.25)"/>
+      </g>
+    </svg>
+  </div>
+  <nav class="hero-nav">
+    <div class="brand"><i>P</i> Post MD</div>
+    <span class="spacer"></span>
+    <span class="ver">v0.1.0-dev</span>
+  </nav>
+  <div class="hero-body">
+    <h1>MD Trajectory Analysis</h1>
+    <p>Rapid analysis of molecular dynamics trajectories. PCA, structural clustering, RMSD, RMSF, Rg, SASA, and hydrogen bond analysis.</p>
+  </div>
+</div>
+
+<div class="content">
+
+<!-- ━━━ Upload (left) + Plot-from-data (right) ━━━ -->
+<div class="top-row">
+<div class="section" id="upload-section">
+  <h2 class="section-title">Upload Trajectory Files</h2>
+  <p class="section-desc">Point to topology and trajectory files on disk. Add multiple systems to compare (WT, Mutant 1, etc.).</p>
+  <div id="systems-list"></div>
+  <button id="btn-add-system" class="ghost" style="margin-top:0.5rem">+ Add another system</button>
+  <div class="pills" id="status-pills"></div>
+  <div style="display:flex;align-items:center;gap:0.8rem;margin-top:1.2rem;flex-wrap:wrap">
+    <button id="btn-save-systems" class="primary lg">Upload &amp; continue</button>
+    <button id="btn-reset" class="danger-ghost sm">Reset</button>
+    <span id="systems-status" class="run-status"></span>
+  </div>
+</div>
+
+<!-- right column: plot directly from an existing data file -->
+<div class="section" id="plotdata-section">
+  <h2 class="section-title">Plot from data file</h2>
+  <p class="section-desc">Already have <code>.dat</code> / <code>.xvg</code> / <code>.csv</code> files? Upload one or more and generate a graph directly &mdash; overlay several to compare (e.g. WT vs mutant). First column is X, second is Y.</p>
+  <div id="dat-list"></div>
+  <button id="btn-add-dat" class="ghost" style="margin-top:0.5rem">+ Add file</button>
+  <details style="margin-top:0.8rem"><summary>Plot customisation</summary><div class="grid-2" style="margin-top:0.6rem">
+    <label>Title<input type="text" id="pd-title"></label>
+    <label>X-axis<input type="text" id="pd-xlabel" placeholder="Time (ns)"></label>
+    <label>Y-axis<input type="text" id="pd-ylabel" placeholder="Value"></label>
+    <label>Font size<input type="number" id="pd-font" value="12"></label>
+    <label>Fig size<input type="text" id="pd-figsize" placeholder="7.5x4.5"></label>
+    <label>DPI<input type="number" id="pd-dpi" value="150"></label>
+    <label><input type="checkbox" id="pd-open"> Open frame</label>
+    <label><input type="checkbox" id="pd-nogrid"> Hide grid</label>
+  </div></details>
+  <div style="display:flex;align-items:center;gap:0.8rem;margin-top:1rem">
+    <button id="btn-plot-data" class="primary lg">Generate graph</button>
+    <span id="plotdata-status" class="run-status"></span>
+  </div>
+  <div id="plotdata-result"></div>
+</div>
+</div><!-- /.top-row -->
+
+<!-- ━━━ Choose Analysis (hidden until upload) ━━━ -->
+<div class="section hidden-section" id="analysis-section">
+  <h2 class="section-title">Choose Analysis</h2>
+  <p class="section-desc">Select analyses to run across all uploaded systems.</p>
+
+  <div class="analysis-block" data-analysis="info">
+    <header><input type="checkbox" data-toggle="info"><span class="title">Info</span><span class="desc">&mdash; atom / residue / bond / frame counts</span></header>
+  </div>
+  <div class="analysis-block" data-analysis="rmsd">
+    <header><input type="checkbox" data-toggle="rmsd"><span class="title">RMSD</span><span class="desc">&mdash; per-frame RMSD vs reference</span></header>
+    <div class="params"><div class="grid-2">
+      <label>Atom selection<input type="text" name="selection" value="name CA" data-tab="rmsd"></label>
+      <label>Reference frame<input type="number" name="reference" value="0" min="0" data-tab="rmsd"></label>
+      <label>Output<select name="output_ext" data-tab="rmsd"><option value="dat">.dat</option><option value="xvg">.xvg</option><option value="csv">.csv</option></select></label>
+      <label>Time unit<select name="time_unit" data-tab="rmsd"><option value="ns">ns</option><option value="ps">ps</option><option value="fs">fs</option><option value="us">us</option></select></label>
+    </div><details><summary>Plot customisation</summary><div class="grid-3">
+      <label>Title<input type="text" name="title" data-tab="rmsd"></label><label>X-axis<input type="text" name="xlabel" data-tab="rmsd"></label><label>Y-axis<input type="text" name="ylabel" data-tab="rmsd"></label>
+      <label>Color<input type="text" name="color" placeholder="#1f77b4" data-tab="rmsd"></label><label>Line width<input type="number" name="linewidth" value="1.6" step="0.1" data-tab="rmsd"></label><label>Legend<input type="text" name="legend_label" data-tab="rmsd"></label>
+      <label>X min<input type="number" step="any" name="xmin" data-tab="rmsd"></label><label>X max<input type="number" step="any" name="xmax" data-tab="rmsd"></label><label>Y min<input type="number" step="any" name="ymin" data-tab="rmsd"></label>
+      <label>Y max<input type="number" step="any" name="ymax" data-tab="rmsd"></label><label>Fig size<input type="text" name="figsize" placeholder="7.5x4.5" data-tab="rmsd"></label><label>DPI<input type="number" name="dpi" value="150" data-tab="rmsd"></label>
+      <label>Font size<input type="number" name="font_size" value="12" data-tab="rmsd"></label><label><input type="checkbox" name="no_grid" data-tab="rmsd"> Hide grid</label><label><input type="checkbox" name="show_average" data-tab="rmsd" checked> Show average</label><label><input type="checkbox" name="open_frame" data-tab="rmsd"> Open frame</label><label><input type="checkbox" name="no_plot" data-tab="rmsd"> Data only</label>
+    </div></details></div>
+  </div>
+  <div class="analysis-block" data-analysis="rmsf">
+    <header><input type="checkbox" data-toggle="rmsf"><span class="title">RMSF</span><span class="desc">&mdash; per-residue or per-atom fluctuation</span></header>
+    <div class="params"><div class="grid-2">
+      <label>Atom selection<input type="text" name="selection" value="protein" data-tab="rmsf"></label>
+      <label>Output<select name="output_ext" data-tab="rmsf"><option value="dat">.dat</option><option value="xvg">.xvg</option><option value="csv">.csv</option></select></label>
+      <label><input type="checkbox" name="per_atom" data-tab="rmsf"> Per-atom <small>(default: per-residue)</small></label>
+    </div><details><summary>Plot customisation</summary><div class="grid-3">
+      <label>Title<input type="text" name="title" data-tab="rmsf"></label><label>X-axis<input type="text" name="xlabel" data-tab="rmsf"></label><label>Y-axis<input type="text" name="ylabel" data-tab="rmsf"></label>
+      <label>Color<input type="text" name="color" data-tab="rmsf"></label><label>Line width<input type="number" name="linewidth" value="1.6" step="0.1" data-tab="rmsf"></label><label>Legend<input type="text" name="legend_label" data-tab="rmsf"></label>
+      <label>X min<input type="number" step="any" name="xmin" data-tab="rmsf"></label><label>X max<input type="number" step="any" name="xmax" data-tab="rmsf"></label><label>Y min<input type="number" step="any" name="ymin" data-tab="rmsf"></label>
+      <label>Y max<input type="number" step="any" name="ymax" data-tab="rmsf"></label><label>Fig size<input type="text" name="figsize" placeholder="7.5x4.5" data-tab="rmsf"></label><label>DPI<input type="number" name="dpi" value="150" data-tab="rmsf"></label>
+      <label>Font size<input type="number" name="font_size" value="12" data-tab="rmsf"></label><label><input type="checkbox" name="no_grid" data-tab="rmsf"> Hide grid</label><label><input type="checkbox" name="show_average" data-tab="rmsf" checked> Show average</label><label><input type="checkbox" name="open_frame" data-tab="rmsf"> Open frame</label><label><input type="checkbox" name="no_plot" data-tab="rmsf"> Data only</label>
+    </div></details></div>
+  </div>
+  <div class="analysis-block" data-analysis="rg">
+    <header><input type="checkbox" data-toggle="rg"><span class="title">Rg</span><span class="desc">&mdash; radius of gyration per frame</span></header>
+    <div class="params"><div class="grid-2">
+      <label>Atom selection<input type="text" name="selection" value="protein" data-tab="rg"></label>
+      <label>Output<select name="output_ext" data-tab="rg"><option value="dat">.dat</option><option value="xvg">.xvg</option><option value="csv">.csv</option></select></label>
+      <label>Time unit<select name="time_unit" data-tab="rg"><option value="ns">ns</option><option value="ps">ps</option><option value="fs">fs</option><option value="us">us</option></select></label>
+    </div><details><summary>Plot customisation</summary><div class="grid-3">
+      <label>Title<input type="text" name="title" data-tab="rg"></label><label>X-axis<input type="text" name="xlabel" data-tab="rg"></label><label>Y-axis<input type="text" name="ylabel" data-tab="rg"></label>
+      <label>Color<input type="text" name="color" data-tab="rg"></label><label>Line width<input type="number" name="linewidth" value="1.6" step="0.1" data-tab="rg"></label><label>Legend<input type="text" name="legend_label" data-tab="rg"></label>
+      <label>X min<input type="number" step="any" name="xmin" data-tab="rg"></label><label>X max<input type="number" step="any" name="xmax" data-tab="rg"></label><label>Y min<input type="number" step="any" name="ymin" data-tab="rg"></label>
+      <label>Y max<input type="number" step="any" name="ymax" data-tab="rg"></label><label>Fig size<input type="text" name="figsize" data-tab="rg"></label><label>DPI<input type="number" name="dpi" value="150" data-tab="rg"></label>
+      <label>Font size<input type="number" name="font_size" value="12" data-tab="rg"></label><label><input type="checkbox" name="no_grid" data-tab="rg"> Hide grid</label><label><input type="checkbox" name="show_average" data-tab="rg" checked> Show average</label><label><input type="checkbox" name="open_frame" data-tab="rg"> Open frame</label><label><input type="checkbox" name="no_plot" data-tab="rg"> Data only</label>
+    </div></details></div>
+  </div>
+  <div class="analysis-block" data-analysis="sasa">
+    <header><input type="checkbox" data-toggle="sasa"><span class="title">SASA</span><span class="desc">&mdash; solvent-accessible surface area</span></header>
+    <div class="params"><div class="grid-3">
+      <label>Atom selection<input type="text" name="selection" value="protein" data-tab="sasa"></label>
+      <label>Probe radius (A)<input type="number" step="0.1" name="probe_radius" value="1.4" data-tab="sasa"></label>
+      <label>Sphere pts<input type="number" name="n_sphere_points" value="96" min="20" max="512" data-tab="sasa"></label>
+      <label>Output<select name="output_ext" data-tab="sasa"><option value="dat">.dat</option><option value="xvg">.xvg</option><option value="csv">.csv</option></select></label>
+      <label>Time unit<select name="time_unit" data-tab="sasa"><option value="ns">ns</option><option value="ps">ps</option><option value="fs">fs</option><option value="us">us</option></select></label>
+    </div><details><summary>Plot customisation</summary><div class="grid-3">
+      <label>Title<input type="text" name="title" data-tab="sasa"></label><label>X-axis<input type="text" name="xlabel" data-tab="sasa"></label><label>Y-axis<input type="text" name="ylabel" data-tab="sasa"></label>
+      <label>Color<input type="text" name="color" data-tab="sasa"></label><label>Line width<input type="number" name="linewidth" value="1.6" step="0.1" data-tab="sasa"></label><label>Legend<input type="text" name="legend_label" data-tab="sasa"></label>
+      <label>X min<input type="number" step="any" name="xmin" data-tab="sasa"></label><label>X max<input type="number" step="any" name="xmax" data-tab="sasa"></label><label>Y min<input type="number" step="any" name="ymin" data-tab="sasa"></label>
+      <label>Y max<input type="number" step="any" name="ymax" data-tab="sasa"></label><label>Fig size<input type="text" name="figsize" placeholder="7.5x4.5" data-tab="sasa"></label><label>DPI<input type="number" name="dpi" value="150" data-tab="sasa"></label>
+      <label>Font size<input type="number" name="font_size" value="12" data-tab="sasa"></label><label><input type="checkbox" name="no_grid" data-tab="sasa"> Hide grid</label><label><input type="checkbox" name="show_average" data-tab="sasa" checked> Show average</label><label><input type="checkbox" name="open_frame" data-tab="sasa"> Open frame</label><label><input type="checkbox" name="no_plot" data-tab="sasa"> Data only</label>
+    </div></details></div>
+  </div>
+  <div class="analysis-block" data-analysis="hbond">
+    <header><input type="checkbox" data-toggle="hbond"><span class="title">H-bond</span><span class="desc">&mdash; per-frame hydrogen bond count</span></header>
+    <div class="params"><div class="grid-3">
+      <label>Atom selection<input type="text" name="selection" value="protein" data-tab="hbond"></label>
+      <label>D-A cutoff (A)<input type="number" step="0.1" name="d_a_cutoff" value="3.5" data-tab="hbond"></label>
+      <label>D-H-A angle (deg)<input type="number" step="1" name="angle_cutoff" value="150" data-tab="hbond"></label>
+      <label>Output<select name="output_ext" data-tab="hbond"><option value="dat">.dat</option><option value="xvg">.xvg</option><option value="csv">.csv</option></select></label>
+      <label>Time unit<select name="time_unit" data-tab="hbond"><option value="ns">ns</option><option value="ps">ps</option><option value="fs">fs</option><option value="us">us</option></select></label>
+    </div><details><summary>Plot customisation</summary><div class="grid-3">
+      <label>Title<input type="text" name="title" data-tab="hbond"></label><label>X-axis<input type="text" name="xlabel" data-tab="hbond"></label><label>Y-axis<input type="text" name="ylabel" data-tab="hbond"></label>
+      <label>Color<input type="text" name="color" data-tab="hbond"></label><label>Line width<input type="number" name="linewidth" value="1.6" step="0.1" data-tab="hbond"></label><label>Legend<input type="text" name="legend_label" data-tab="hbond"></label>
+      <label>X min<input type="number" step="any" name="xmin" data-tab="hbond"></label><label>X max<input type="number" step="any" name="xmax" data-tab="hbond"></label><label>Y min<input type="number" step="any" name="ymin" data-tab="hbond"></label>
+      <label>Y max<input type="number" step="any" name="ymax" data-tab="hbond"></label><label>Fig size<input type="text" name="figsize" placeholder="7.5x4.5" data-tab="hbond"></label><label>DPI<input type="number" name="dpi" value="150" data-tab="hbond"></label>
+      <label>Font size<input type="number" name="font_size" value="12" data-tab="hbond"></label><label><input type="checkbox" name="no_grid" data-tab="hbond"> Hide grid</label><label><input type="checkbox" name="show_average" data-tab="hbond" checked> Show average</label><label><input type="checkbox" name="open_frame" data-tab="hbond"> Open frame</label><label><input type="checkbox" name="no_plot" data-tab="hbond"> Data only</label>
+    </div></details></div>
+  </div>
+  <div class="analysis-block" data-analysis="pca">
+    <header><input type="checkbox" data-toggle="pca"><span class="title">PCA</span><span class="desc">&mdash; Cartesian PCA per system</span></header>
+    <div class="params"><div class="grid-2">
+      <label>Atom selection<input type="text" name="selection" value="name CA" data-tab="pca"></label>
+      <label>Components<input type="number" name="n_components" value="10" min="1" data-tab="pca"></label>
+    </div><details><summary>Plot customisation</summary><div class="grid-3">
+      <label>Title<input type="text" name="title" data-tab="pca"></label><label>X label<input type="text" name="xlabel" placeholder="PC1" data-tab="pca"></label><label>Y label<input type="text" name="ylabel" placeholder="PC2" data-tab="pca"></label>
+      <label>Scree color<input type="text" name="color" placeholder="steelblue" data-tab="pca"></label><label>Cumul. color<input type="text" name="accent_color" placeholder="darkorange" data-tab="pca"></label><label>Scatter cmap<input type="text" name="cmap" placeholder="viridis" data-tab="pca"></label>
+      <label>Line width<input type="number" name="linewidth" value="1.6" step="0.1" data-tab="pca"></label><label>Fig size<input type="text" name="figsize" placeholder="12x4.5" data-tab="pca"></label><label>DPI<input type="number" name="dpi" value="150" data-tab="pca"></label>
+      <label>Font size<input type="number" name="font_size" value="12" data-tab="pca"></label><label><input type="checkbox" name="no_grid" data-tab="pca"> Hide grid</label><label><input type="checkbox" name="open_frame" data-tab="pca"> Open frame</label><label><input type="checkbox" name="no_plot" data-tab="pca"> Data only</label>
+    </div></details></div>
+  </div>
+  <div class="analysis-block" data-analysis="cluster">
+    <header><input type="checkbox" data-toggle="cluster"><span class="title">Cluster</span><span class="desc">&mdash; K-means on PCA projections</span></header>
+    <div class="params"><div class="grid-3">
+      <label>k<input type="number" name="k" value="5" min="1" data-tab="cluster"></label>
+      <label>PCs<input type="number" name="n_pcs" value="10" min="1" data-tab="cluster"></label>
+      <label>Seed<input type="number" name="seed" value="0" data-tab="cluster"></label>
+      <label>Output<select name="output_ext" data-tab="cluster"><option value="dat">.dat</option><option value="xvg">.xvg</option><option value="csv">.csv</option></select></label>
+      <label><input type="checkbox" name="rep_pdb" data-tab="cluster" checked> Rep PDB</label>
+    </div><details><summary>Plot customisation</summary><div class="grid-3">
+      <label>Title<input type="text" name="title" data-tab="cluster"></label><label>X label<input type="text" name="xlabel" placeholder="PC1" data-tab="cluster"></label><label>Y label<input type="text" name="ylabel" placeholder="PC2" data-tab="cluster"></label>
+      <label>Center color<input type="text" name="color" placeholder="black" data-tab="cluster"></label><label>Rep color<input type="text" name="accent_color" placeholder="red" data-tab="cluster"></label><label>Cmap<input type="text" name="cmap" placeholder="tab10" data-tab="cluster"></label>
+      <label>Fig size<input type="text" name="figsize" placeholder="7.5x6" data-tab="cluster"></label><label>DPI<input type="number" name="dpi" value="150" data-tab="cluster"></label><label>Font size<input type="number" name="font_size" value="12" data-tab="cluster"></label>
+      <label><input type="checkbox" name="no_grid" data-tab="cluster"> Hide grid</label><label><input type="checkbox" name="open_frame" data-tab="cluster"> Open frame</label><label><input type="checkbox" name="no_plot" data-tab="cluster"> Data only</label>
+    </div></details></div>
+  </div>
+
+  <div class="run-bar">
+    <button id="btn-run-batch" class="primary lg">Run analysis</button>
+    <button id="btn-cancel-run" class="danger-ghost" hidden>Stop</button>
+    <label class="toggle"><input type="checkbox" id="opt-autoimage" checked> Autoimage</label>
+    <label class="toggle">Workers: <input type="number" id="opt-workers" min="1" style="width:4.5rem" placeholder="auto"><span id="workers-hint" style="font-size:0.76rem;color:var(--dim);margin-left:0.3rem"></span></label>
+    <span class="spacer"></span>
+    <span id="run-status" class="run-status"></span>
+  </div>
+</div>
+
+<!-- ━━━ Results (hidden until run) ━━━ -->
+<div class="section hidden-section" id="results-section">
+  <div style="display:flex;align-items:center;gap:0.8rem;margin-bottom:0.8rem">
+    <h2 class="section-title" style="margin:0">Results</h2>
+    <span class="spacer"></span>
+    <button id="btn-cancel-results" class="danger-ghost" hidden>Stop</button>
+    <button id="btn-refresh-results" class="ghost sm">Refresh</button>
+  </div>
+  <div id="progress-area" class="progress-wrap" style="display:none">
+    <strong style="font-size:0.86rem" id="progress-label">Preparing...</strong>
+    <div class="progress-bar-outer"><div class="progress-bar-inner" id="progress-bar"></div></div>
+    <div class="progress-text" id="progress-text"></div>
+  </div>
+  <div id="results-area"></div>
+</div>
+
+</div><!-- /.content -->
+
+<div class="lightbox" id="lightbox" aria-hidden="true">
+  <button class="lb-close" id="lb-close" aria-label="Close">&times;</button>
+  <img id="lb-img" alt="">
+</div>
+<div class="status-strip" id="status-strip" data-level="info">Ready.</div>
+
+<script>
+const $=s=>document.querySelector(s);
+const $$=s=>[...document.querySelectorAll(s)];
+let state={systems:[],outputs:[]};
+
+function setGlobalStatus(m,l){const e=$('#status-strip');e.textContent=m||'';e.dataset.level=l||'info'}
+
+/* ── Reveal helpers ── */
+function showSection(id){const el=$('#'+id);el.classList.add('visible');setTimeout(()=>el.scrollIntoView({behavior:'smooth',block:'start'}),50)}
+
+/* ── Status ── */
+async function refreshStatus(){const r=await fetch('/api/status');state=await r.json();renderStatus()}
+function renderStatus(){
+  const p=$('#status-pills');p.innerHTML='';
+  if(!state.systems.length){p.innerHTML='<span class="pill">no systems</span>';return}
+  for(const s of state.systems){
+    const ok=s.topology&&s.trajectory;const sp=document.createElement('span');
+    sp.className='pill '+(ok?'ok':(s.topology_stale||s.trajectory_stale?'stale':''));
+    sp.textContent=ok?s.label+': ready':(s.topology_stale||s.trajectory_stale?s.label+': STALE':s.label+': incomplete');
+    p.appendChild(sp);
+  }
+}
+
+/* ── Systems ── */
+function renderSystems(){const l=$('#systems-list');l.innerHTML='';if(!state.systems.length){addSystemRow({label:'System 1'});return}for(const s of state.systems)addSystemRow(s)}
+const TAB10=['#1f77b4','#ff7f0e','#2ca02c','#d62728','#9467bd','#8c564b','#e377c2','#7f7f7f','#bcbd22','#17becf'];
+function nextColor(){const u=$$('#systems-list .sys-row .color-input').map(i=>(i.value||'').toLowerCase());for(const c of TAB10)if(!u.includes(c.toLowerCase()))return c;return TAB10[u.length%TAB10.length]}
+function addSystemRow(init){
+  const list=$('#systems-list'),row=document.createElement('div');row.className='sys-row';
+  const col=(init&&init.color)||nextColor();
+  row.innerHTML=`<div class="sys-row-head"><input type="text" class="label-input" placeholder="Label (WT, Mut1...)" value="${(init&&init.label)||''}"><input type="color" class="color-input" value="${col}" title="Plot color"><span class="spacer" style="flex:1"></span><button type="button" class="danger-ghost sm btn-remove-system">Remove</button></div>
+  <div class="file-group"><label>Topology <small>.prmtop / .parm7 / .pdb / .gro</small></label><div class="path-row"><input type="text" class="topology-input mono" placeholder="/path/to/system.prmtop" value="${(init&&(init.original_topology||init.topology_path))||''}"><button type="button" class="sm btn-browse-topology">Browse</button></div><div class="file-browser browser-topology" style="display:none"></div></div>
+  <div class="file-group"><label>Trajectory <small>.nc / .xtc / .trr / .mdcrd</small></label><div class="path-row"><input type="text" class="trajectory-input mono" placeholder="/path/to/prod.nc" value="${(init&&(init.original_trajectory||init.trajectory_path))||''}"><button type="button" class="sm btn-browse-trajectory">Browse</button></div><div class="file-browser browser-trajectory" style="display:none"></div></div>
+  <div class="prepare-status"></div>`;
+  if(init&&(init.topology_stale||init.trajectory_stale)){const w=document.createElement('div');w.className='sys-stale';const p=[];if(init.topology_stale)p.push('topology: '+init.topology_stale);if(init.trajectory_stale)p.push('trajectory: '+init.trajectory_stale);w.textContent=p.join(' | ');row.appendChild(w)}
+  row.querySelector('.btn-remove-system').onclick=()=>row.remove();
+  row.querySelector('.btn-browse-topology').onclick=()=>toggleBrowser(row,'topology');
+  row.querySelector('.btn-browse-trajectory').onclick=()=>toggleBrowser(row,'trajectory');
+  list.appendChild(row);
+}
+function showPrepareStatus(row,msg,e){const el=row.querySelector('.prepare-status');if(!el)return;el.textContent=msg||'';el.className='prepare-status'+(e?' error':'')}
+function formatProgress(s,v){if(!s)return v+'...';const{done,total}=s;if(!total)return v+'... (starting)';return`${v}: ${((done/total)*100).toFixed(1)}%  (${done.toLocaleString()} / ${total.toLocaleString()} frames)`}
+function collectSystems(){return $$('#systems-list .sys-row').map(r=>({label:r.querySelector('.label-input').value.trim(),topology:r.querySelector('.topology-input').value.trim(),trajectory:r.querySelector('.trajectory-input').value.trim(),color:r.querySelector('.color-input').value})).filter(s=>s.topology||s.trajectory)}
+$('#btn-add-system').onclick=()=>addSystemRow({label:'System '+($$('#systems-list .sys-row').length+1)});
+
+/* ── Save → reveal analysis ── */
+$('#btn-save-systems').onclick=async()=>{
+  const sys=collectSystems();if(!sys.length){setSysStatus('Add at least one system.',true);return}
+  setSysStatus('Saving...',false);setGlobalStatus('Saving...','running');
+  try{
+    const r=await fetch('/api/systems',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({systems:sys})});
+    const d=await r.json().catch(()=>({}));
+    if(!r.ok){setSysStatus('Failed: '+(d.detail||r.statusText),true);setGlobalStatus('Failed','error');return}
+    state=d.state;renderStatus();setSysStatus('Saved.',false);setGlobalStatus('Systems saved.','ok');
+    showSection('analysis-section');
+  }catch(e){setSysStatus('Error: '+e.message,true);setGlobalStatus('Error','error')}
+};
+function setSysStatus(m,e){$('#systems-status').textContent=m;$('#systems-status').className='run-status'+(e?' error':'')}
+
+$('#btn-reset').onclick=async()=>{
+  if(!confirm('Reset workspace?'))return;await fetch('/api/reset',{method:'POST'});
+  $('#results-area').innerHTML='';state={systems:[],outputs:[]};renderStatus();
+  $('#systems-list').innerHTML='';addSystemRow({label:'System 1'});setSysStatus('',false);
+  setGlobalStatus('Reset.','ok');
+  $('#analysis-section').classList.remove('visible');$('#results-section').classList.remove('visible');
+};
+
+/* ── File browser ── */
+async function fetchBrowse(role,path){const p=new URLSearchParams();if(path)p.set('path',path);if(role)p.set('role',role);const r=await fetch('/api/browse?'+p);if(!r.ok){const d=await r.json().catch(()=>({}));throw new Error(d.detail||'HTTP '+r.status)}return r.json()}
+function fmtSize(b){if(b==null)return'';if(b<1024)return b+' B';if(b<1048576)return(b/1024).toFixed(1)+' KB';if(b<1073741824)return(b/1048576).toFixed(1)+' MB';return(b/1073741824).toFixed(2)+' GB'}
+function renderBrowser(panel,role,data,row){
+  panel.innerHTML='';
+  const h=document.createElement('div');h.className='fb-header';const ps=document.createElement('span');ps.className='fb-path';ps.textContent=data.path;const cb=document.createElement('button');cb.className='ghost sm';cb.textContent='Close';cb.onclick=()=>{panel.style.display='none'};h.append(ps,cb);panel.appendChild(h);
+  const list=document.createElement('div');list.className='fb-entries';
+  if(data.parent){const u=document.createElement('div');u.className='fb-entry';u.innerHTML='<span class="fb-icon">&uarr;</span><span>..</span>';u.onclick=()=>openBrowser(panel,role,data.parent,row);list.appendChild(u)}
+  for(const d of(data.dirs||[])){const r=document.createElement('div');r.className='fb-entry';r.innerHTML=`<span class="fb-icon">&#128193;</span><span>${d.name}</span>`;r.onclick=()=>openBrowser(panel,role,d.path,row);list.appendChild(r)}
+  for(const f of(data.files||[])){const r=document.createElement('div');r.className='fb-entry';r.innerHTML=`<span class="fb-icon">&#128196;</span><span>${f.name}</span><span class="fb-size">${fmtSize(f.size)}</span>`;r.onclick=()=>{row.querySelector('.'+role+'-input').value=f.path;panel.style.display='none'};list.appendChild(r)}
+  if(!(data.dirs||[]).length&&!(data.files||[]).length){const e=document.createElement('div');e.className='fb-empty';e.textContent='No matching files.';list.appendChild(e)}
+  panel.appendChild(list);
+  const go=document.createElement('div');go.className='fb-go';const gi=document.createElement('input');gi.type='text';gi.placeholder='Jump to path...';gi.value=data.path;const gb=document.createElement('button');gb.textContent='Go';const gh=()=>{const v=gi.value.trim();if(v)openBrowser(panel,role,v,row)};gb.onclick=gh;gi.onkeydown=e=>{if(e.key==='Enter')gh()};go.append(gi,gb);panel.appendChild(go);
+}
+async function openBrowser(panel,role,path,row){panel.style.display='';panel.innerHTML='<div class="fb-empty">Loading...</div>';try{renderBrowser(panel,role,await fetchBrowse(role,path),row)}catch(e){panel.innerHTML='<div class="fb-empty" style="color:var(--danger)">'+e.message+'</div>'}}
+function toggleBrowser(row,role){const p=row.querySelector('.browser-'+role);if(p.style.display!=='none'){p.style.display='none';return}openBrowser(p,role,row.querySelector('.'+role+'-input').value.trim(),row)}
+
+/* ── Analysis expand ── */
+$$('.analysis-block').forEach(b=>{const cb=b.querySelector('input[data-toggle]');cb.onchange=()=>b.classList.toggle('expanded',cb.checked);b.querySelector('header').onclick=e=>{if(e.target===cb||e.target.closest('input,label'))return;cb.checked=!cb.checked;cb.dispatchEvent(new Event('change'))}});
+function collectOptions(t){const o={};$$(`[data-tab="${t}"]`).forEach(i=>{if(i.type==='checkbox'){if(i.checked)o[i.name]=true}else if(i.value!==''){if(i.type==='number'){const n=Number(i.value);if(!isNaN(n))o[i.name]=n}else o[i.name]=i.value}});return o}
+
+/* ── Run → reveal results ── */
+function setRunUI(r){$('#btn-run-batch').hidden=r;$('#btn-cancel-run').hidden=!r;$('#btn-cancel-results').hidden=!r}
+let cancelRequested=false;
+async function doCancel(){cancelRequested=true;setGlobalStatus('Cancelling...','running');$('#btn-cancel-run').disabled=true;$('#btn-cancel-results').disabled=true;try{await fetch('/api/cancel-run',{method:'POST'})}catch(e){setGlobalStatus('Cancel failed','error')}}
+$('#btn-cancel-run').onclick=doCancel;$('#btn-cancel-results').onclick=doCancel;
+function showProgress(l,p,t){$('#progress-area').style.display='';$('#progress-label').textContent=l;$('#progress-bar').style.width=p+'%';$('#progress-text').textContent=t||''}
+function hideProgress(){$('#progress-area').style.display='none'}
+
+$('#btn-run-batch').onclick=async()=>{
+  const sel=$$('.analysis-block input[data-toggle]:checked').map(c=>c.dataset.toggle);
+  if(!sel.length){setRunStatus('Tick at least one analysis.',true);return}
+  if(!state.systems.length){setRunStatus('Upload systems first.',true);return}
+  const inc=state.systems.find(s=>!s.topology||!s.trajectory);
+  if(inc){setRunStatus('"'+inc.label+'" missing files.',true);return}
+
+  showSection('results-section');
+  $('#results-area').innerHTML='';showProgress('Preparing...',0,'Starting...');
+
+  const doInfo=sel.includes('info'),batch={};for(const n of sel)if(n!=='info')batch[n]=collectOptions(n);
+  setRunStatus('Running...',false);setGlobalStatus('Running '+sel.join(', ')+'...','running');
+  cancelRequested=false;$('#btn-cancel-run').disabled=false;$('#btn-cancel-results').disabled=false;setRunUI(true);
+  const rows=$$('#systems-list .sys-row');let alive=true;
+
+  const poller=(async()=>{while(alive){try{const snaps=await Promise.all(state.systems.map((_,i)=>fetch('/api/preprocess-progress?system='+i).then(r=>r.ok?r.json():null).catch(()=>null)));let ai=-1;for(let i=0;i<state.systems.length&&i<rows.length;i++){const sn=(snaps[i]&&snaps[i].prepare)||null;if(!sn){showPrepareStatus(rows[i],'');continue}if(sn.finished)showPrepareStatus(rows[i],'');else{showPrepareStatus(rows[i],formatProgress(sn,'Preparing '+state.systems[i].label));if(ai<0)ai=i}}if(!alive)break;if(ai>=0){const sn=snaps[ai].prepare;showProgress('Preparing '+state.systems[ai].label,(sn.total?((sn.done/sn.total)*100):0).toFixed(0),formatProgress(sn,'Preparing'));setGlobalStatus(formatProgress(sn,'Preparing '+state.systems[ai].label),'running')}}catch(_){}await new Promise(r=>setTimeout(r,1000))}})();
+
+  try{
+    if(doInfo){const infos=[];for(let i=0;i<state.systems.length;i++){const r=await fetch('/api/info',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({system:i})});infos.push({label:state.systems[i].label,ok:r.ok,data:await r.json()})}renderInfo(infos)}
+    if(Object.keys(batch).length){
+      const ai=!!$('#opt-autoimage').checked,ord=Object.keys(batch),ph={};
+      for(const n of ord)ph[n]=mkPlaceholder(n);
+      let fail=null,cancelled=false;
+      for(let i=0;i<ord.length;i++){const name=ord[i];
+        if(cancelRequested){ph[name].replaceWith(mkErr(name,'Cancelled'));cancelled=true;continue}
+        showProgress('Running '+name.toUpperCase(),((i/ord.length)*100).toFixed(0),(i+1)+' of '+ord.length);
+        setRunStatus('Running '+name+'...',false);setGlobalStatus('Running '+name+'...','running');
+        try{const r=await fetch('/api/run-batch',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({analyses:{[name]:batch[name]},autoimage:ai})});
+          if(r.status===499){ph[name].replaceWith(mkErr(name,'Cancelled'));cancelled=true;continue}
+          const d=await r.json();if(!r.ok){ph[name].replaceWith(mkErr(name,d.detail||r.statusText));fail=fail||(d.detail||r.statusText);continue}
+          if(d.result&&d.result[name])ph[name].replaceWith(renderResult(name,d.result[name]));else ph[name].remove();
+          if(d.state){state=d.state;renderStatus()}
+        }catch(e){ph[name].replaceWith(mkErr(name,e.message));fail=fail||e.message}}
+      showProgress('Complete',100,cancelled?'Cancelled':fail?'Done with errors':'All analyses complete');
+      if(cancelled){setRunStatus('Cancelled.',true);setGlobalStatus('Cancelled.','error');return}
+      if(fail){setRunStatus('Done with errors.',true);setGlobalStatus('Errors.','error');return}
+    }else{await refreshStatus()}
+    setRunStatus('Done.',false);setGlobalStatus('Done.','ok');showProgress('Complete',100,'All done');
+  }catch(e){setRunStatus('Error: '+e.message,true);setGlobalStatus('Error','error')}
+  finally{alive=false;await poller;for(const r of rows)showPrepareStatus(r,'');setRunUI(false);setTimeout(hideProgress,4000)}
+};
+function setRunStatus(m,e){$('#run-status').textContent=m;$('#run-status').className='run-status'+(e?' error':'')}
+
+function renderInfo(infos){const b=document.createElement('div');b.className='result-block';b.innerHTML='<h4>Info</h4>';for(const it of infos){const w=document.createElement('div');w.style.marginBottom='0.5rem';w.innerHTML='<strong>'+it.label+'</strong>';const p=document.createElement('pre');p.className='json';p.textContent=JSON.stringify(it.data,null,2);w.appendChild(p);b.appendChild(w)}$('#results-area').appendChild(b)}
+function renderResult(name,entry){
+  const b=document.createElement('div');b.className='result-block';b.innerHTML='<h4>'+name.toUpperCase()+'</h4>';
+  if(entry.systems){const lw=document.createElement('p');lw.innerHTML=entry.systems.filter(s=>s.data).map(s=>'<strong>'+s.label+':</strong> <a href="/api/result/'+encodeURIComponent(s.data)+'" target="_blank" download>'+s.data+'</a>'+(s.plot?' &middot; <a href="/api/result/'+encodeURIComponent(s.plot)+'" target="_blank" download>'+s.plot+'</a>':'')+(s.rep_pdb?' &middot; <a href="/api/result/'+encodeURIComponent(s.rep_pdb)+'" target="_blank" download>'+s.rep_pdb+'</a>':'')).join('<br>');b.appendChild(lw)}
+  if(entry.plot){const l=document.createElement('p');l.innerHTML='Combined: <a href="/api/result/'+encodeURIComponent(entry.plot)+'" target="_blank" download>'+entry.plot+'</a>';b.appendChild(l);const img=document.createElement('img');img.src='/api/result/'+encodeURIComponent(entry.plot)+'?cb='+Date.now();img.alt=name;img.onclick=()=>openLightbox(img.src);b.appendChild(img)}
+  if(entry.systems&&!entry.plot){for(const s of entry.systems){if(s.plot){const l=document.createElement('p');l.innerHTML='<strong>'+s.label+'</strong>';b.appendChild(l);const img=document.createElement('img');img.src='/api/result/'+encodeURIComponent(s.plot)+'?cb='+Date.now();img.alt=name+' '+s.label;img.onclick=()=>openLightbox(img.src);b.appendChild(img)}}}
+  return b;
+}
+function mkPlaceholder(n){const b=document.createElement('div');b.className='result-block';b.innerHTML='<h4>'+n.toUpperCase()+'</h4><p style="color:var(--muted)">Running...</p>';$('#results-area').appendChild(b);return b}
+function mkErr(n,m){const b=document.createElement('div');b.className='result-block';b.innerHTML='<h4>'+n.toUpperCase()+'</h4><p style="color:var(--danger)">Failed: '+m+'</p>';return b}
+
+/* ── Lightbox ── */
+function openLightbox(s){$('#lb-img').src=s;$('#lightbox').classList.add('open')}
+function closeLightbox(){$('#lightbox').classList.remove('open');$('#lb-img').src=''}
+$('#lb-close').onclick=closeLightbox;$('#lightbox').onclick=e=>{if(e.target.id==='lightbox')closeLightbox()};document.onkeydown=e=>{if(e.key==='Escape')closeLightbox()};
+
+$('#btn-refresh-results').onclick=async()=>{setGlobalStatus('Refreshing...','running');await refreshStatus();setGlobalStatus('Refreshed.','ok')};
+
+/* ── Workers ── */
+async function loadSettings(){try{const r=await fetch('/api/settings');if(!r.ok)return;const s=await r.json();if(s.workers!=null)$('#opt-workers').value=s.workers;else $('#opt-workers').value='';$('#workers-hint').textContent='('+s.effective_workers+'/'+s.total_cores+' cores)'}catch(_){}}
+async function saveWorkers(){const v=$('#opt-workers').value.trim();try{const r=await fetch('/api/settings',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({workers:v===''?null:Number(v)})});if(!r.ok)return;const s=await r.json();$('#workers-hint').textContent='('+s.effective_workers+'/'+s.total_cores+' cores)'}catch(_){}}
+$('#opt-workers').onchange=saveWorkers;$('#opt-workers').onkeydown=e=>{if(e.key==='Enter'){e.preventDefault();saveWorkers()}};
+
+/* ── Plot from data file ── */
+function setPdStatus(m,e){const el=$('#plotdata-status');if(!el)return;el.textContent=m||'';el.className='run-status'+(e?' error':'')}
+function addDatRow(){
+  const used=$$('#dat-list .dat-color').map(i=>(i.value||'').toLowerCase());
+  const col=TAB10.find(c=>!used.includes(c.toLowerCase()))||TAB10[used.length%TAB10.length];
+  const row=document.createElement('div');row.className='dat-row';
+  row.style='display:flex;gap:0.5rem;align-items:center;margin-bottom:0.5rem;flex-wrap:wrap';
+  row.innerHTML='<input type="file" class="dat-file" accept=".dat,.xvg,.csv,.txt,.tsv">'
+    +'<input type="text" class="dat-label" placeholder="Label (legend)" style="flex:1;min-width:8rem">'
+    +'<input type="text" class="dat-color" placeholder="#color" style="width:6.5rem" value="'+col+'">'
+    +'<button type="button" class="danger-ghost sm btn-rm-dat">Remove</button>';
+  row.querySelector('.btn-rm-dat').onclick=()=>row.remove();
+  row.querySelector('.dat-file').onchange=e=>{const lab=row.querySelector('.dat-label');const f=e.target.files[0];if(f&&!lab.value.trim())lab.value=f.name.replace(/\.[^.]+$/,'')};
+  $('#dat-list').appendChild(row);
+}
+$('#btn-add-dat').onclick=()=>addDatRow();
+$('#btn-plot-data').onclick=async()=>{
+  const rows=$$('#dat-list .dat-row');
+  const fd=new FormData();const labels=[],colors=[];let n=0;
+  for(const r of rows){
+    const fi=r.querySelector('.dat-file');
+    if(!fi.files||!fi.files.length)continue;
+    fd.append('files',fi.files[0]);
+    labels.push(r.querySelector('.dat-label').value.trim());
+    colors.push(r.querySelector('.dat-color').value.trim()||null);
+    n++;
+  }
+  if(!n){setPdStatus('Add at least one file.',true);return}
+  const opts={};
+  const tv=$('#pd-title').value.trim();if(tv)opts.title=tv;
+  const xv=$('#pd-xlabel').value.trim();if(xv)opts.xlabel=xv;
+  const yv=$('#pd-ylabel').value.trim();if(yv)opts.ylabel=yv;
+  const fs=Number($('#pd-font').value);if(!isNaN(fs)&&$('#pd-font').value!=='')opts.font_size=fs;
+  const dp=Number($('#pd-dpi').value);if(!isNaN(dp)&&$('#pd-dpi').value!=='')opts.dpi=dp;
+  const fg=$('#pd-figsize').value.trim();if(fg)opts.figsize=fg;
+  if($('#pd-open').checked)opts.open_frame=true;
+  if($('#pd-nogrid').checked)opts.no_grid=true;
+  fd.append('labels',JSON.stringify(labels));fd.append('colors',JSON.stringify(colors));fd.append('opts',JSON.stringify(opts));
+  setPdStatus('Generating...');$('#btn-plot-data').disabled=true;
+  try{
+    const r=await fetch('/api/plot-data',{method:'POST',body:fd});
+    const d=await r.json().catch(()=>({}));
+    if(!r.ok)throw new Error(d.detail||'HTTP '+r.status);
+    const area=$('#plotdata-result');area.innerHTML='';
+    const b=document.createElement('div');b.className='result-block';
+    const src='/api/result/'+encodeURIComponent(d.plot)+'?cb='+Date.now();
+    const l=document.createElement('p');l.innerHTML='<a href="'+src+'" target="_blank" download>'+d.plot+'</a>';b.appendChild(l);
+    const img=document.createElement('img');img.src=src;img.alt='plot';img.onclick=()=>openLightbox(img.src);b.appendChild(img);
+    area.appendChild(b);setPdStatus('Done.');
+  }catch(e){setPdStatus('Failed: '+e.message,true)}
+  finally{$('#btn-plot-data').disabled=false}
+};
+
+/* ── Init ── */
+(async()=>{
+  setGlobalStatus('Loading...','running');await refreshStatus();await loadSettings();renderSystems();addDatRow();
+  if(state.systems.length&&state.systems.every(s=>s.topology&&s.trajectory))showSection('analysis-section');
+  setGlobalStatus('Ready.','ok');
+})();
+</script>
+</body>
+</html>
