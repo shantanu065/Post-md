@@ -32,10 +32,8 @@ body{min-height:100%;background:#fff;color:var(--text);font-family:var(--sans);f
   display:flex;align-items:center;gap:0.5rem;
   font-weight:700;font-size:1rem;color:#fff;letter-spacing:-0.02em;
 }
-.hero-nav .brand i{
-  width:26px;height:26px;background:var(--accent);border-radius:6px;
-  display:inline-flex;align-items:center;justify-content:center;
-  font-style:normal;font-weight:800;font-size:0.75rem;color:#fff;
+.hero-nav .brand .logo{
+  width:28px;height:28px;border-radius:7px;display:block;flex:none;
 }
 .hero-nav .spacer{flex:1}
 .hero-nav .ver{font-family:var(--mono);font-size:0.7rem;color:rgba(255,255,255,0.35);border:1px solid rgba(255,255,255,0.1);padding:0.1rem 0.5rem;border-radius:99px}
@@ -206,37 +204,84 @@ details>div{margin-top:0.5rem}
 <!-- ━━━ Hero Banner ━━━ -->
 <div class="hero">
   <div class="hero-bg" aria-hidden="true">
-    <svg viewBox="0 0 1200 260" preserveAspectRatio="none" xmlns="http://www.w3.org/2000/svg">
-      <g stroke="rgba(148,163,184,0.12)" stroke-width="0.5" fill="none">
-        <line x1="0" y1="50" x2="1200" y2="50"/><line x1="0" y1="100" x2="1200" y2="100"/>
-        <line x1="0" y1="150" x2="1200" y2="150"/><line x1="0" y1="200" x2="1200" y2="200"/>
-        <line x1="200" y1="0" x2="200" y2="260"/><line x1="400" y1="0" x2="400" y2="260"/>
-        <line x1="600" y1="0" x2="600" y2="260"/><line x1="800" y1="0" x2="800" y2="260"/>
-        <line x1="1000" y1="0" x2="1000" y2="260"/>
+    <svg viewBox="0 0 1200 260" preserveAspectRatio="none" xmlns="http://www.w3.org/2000/svg" font-family="Inter,sans-serif">
+      <!-- four faint mini-plots of the analyses this tool produces -->
+      <defs>
+        <style>
+          .pframe{stroke:rgba(148,163,184,0.30);stroke-width:1;fill:none}
+          .pgrid{stroke:rgba(148,163,184,0.10);stroke-width:0.5;fill:none}
+          .plabel{fill:#94a3b8;font-size:10px;font-weight:600;letter-spacing:0.04em}
+        </style>
+      </defs>
+
+      <!-- Panel 1: RMSD (equilibration: rises then plateaus) -->
+      <g transform="translate(55,60)">
+        <text class="plabel" x="0" y="-8">RMSD</text>
+        <g class="pgrid"><line x1="0" y1="38" x2="210" y2="38"/><line x1="0" y1="76" x2="210" y2="76"/><line x1="0" y1="114" x2="210" y2="114"/></g>
+        <g class="pframe"><line x1="0" y1="0" x2="0" y2="150"/><line x1="0" y1="150" x2="210" y2="150"/></g>
+        <polyline fill="none" stroke="#3b82f6" stroke-width="2" points="0,142 12,120 24,107 36,95 48,89 60,80 72,78 84,71 96,68 108,65 120,63 132,61 144,59 156,61 168,57 180,60 192,56 204,58 210,57"/>
       </g>
-      <polyline fill="none" stroke="#3b82f6" stroke-width="2" opacity="0.6" points="0,180 30,165 60,170 90,155 120,145 150,140 180,130 210,135 240,125 270,123 300,120 330,127 360,118 390,115 420,120 450,112 480,108 510,105 540,110 570,103 600,106 630,100 660,103 690,98 720,96 750,100 780,94 810,96 840,92 870,94 900,90 930,92 960,88 990,90 1020,86 1050,88 1080,85 1110,87 1140,84 1170,86 1200,83"/>
-      <polyline fill="none" stroke="#06b6d4" stroke-width="2" opacity="0.5" points="0,200 40,160 80,190 120,140 160,180 200,120 240,200 280,170 320,210 360,130 400,220 440,150 480,190 520,115 560,170 600,140 640,200 680,128 720,180 760,150 800,210 840,135 880,190 920,160 960,220 1000,140 1040,180 1080,155 1120,195 1160,165 1200,190"/>
-      <polyline fill="none" stroke="#22c55e" stroke-width="1.5" opacity="0.4" points="0,150 50,148 100,152 150,145 200,148 250,140 300,143 350,138 400,142 450,135 500,138 550,132 600,135 650,130 700,133 750,128 800,131 850,126 900,129 950,124 1000,127 1050,122 1100,125 1150,120 1200,123"/>
-      <polyline fill="none" stroke="#f59e0b" stroke-width="1.5" opacity="0.35" points="0,70 40,75 80,65 120,80 160,60 200,72 240,58 280,78 320,62 360,70 400,55 440,68 480,60 520,75 560,52 600,65 640,70 680,58 720,72 760,48 800,62 840,70 880,55 920,68 960,50 1000,63 1040,72 1080,58 1120,65 1160,60 1200,62"/>
-      <g transform="translate(40, 35)" opacity="0.3">
-        <line x1="0" y1="0" x2="20" y2="0" stroke="#3b82f6" stroke-width="2"/><text x="25" y="3.5" fill="#94a3b8" font-size="8" font-family="Inter,sans-serif">RMSD</text>
-        <line x1="0" y1="13" x2="20" y2="13" stroke="#06b6d4" stroke-width="2"/><text x="25" y="16.5" fill="#94a3b8" font-size="8" font-family="Inter,sans-serif">RMSF</text>
-        <line x1="0" y1="26" x2="20" y2="26" stroke="#22c55e" stroke-width="1.5"/><text x="25" y="29.5" fill="#94a3b8" font-size="8" font-family="Inter,sans-serif">Rg</text>
-        <line x1="0" y1="39" x2="20" y2="39" stroke="#f59e0b" stroke-width="1.5"/><text x="25" y="42.5" fill="#94a3b8" font-size="8" font-family="Inter,sans-serif">H-bond</text>
+
+      <!-- Panel 2: RMSF (per-residue fluctuation: high termini, loop peaks) -->
+      <g transform="translate(355,60)">
+        <text class="plabel" x="0" y="-8">RMSF</text>
+        <g class="pgrid"><line x1="0" y1="38" x2="210" y2="38"/><line x1="0" y1="76" x2="210" y2="76"/><line x1="0" y1="114" x2="210" y2="114"/></g>
+        <g class="pframe"><line x1="0" y1="0" x2="0" y2="150"/><line x1="0" y1="150" x2="210" y2="150"/></g>
+        <polyline fill="none" stroke="#06b6d4" stroke-width="2" points="0,40 8,58 16,100 24,88 32,116 40,104 48,122 56,94 64,118 72,108 80,124 88,100 96,116 104,96 112,112 120,88 128,108 136,84 144,74 152,96 160,68 168,90 176,58 184,82 192,44 200,66 210,42"/>
       </g>
-      <g transform="translate(920,25)" opacity="0.15" stroke="#94a3b8" stroke-width="1" fill="none">
-        <path d="M0,50 L20,32 L45,45 L65,22 L90,37 L110,14 L135,28 L155,8 L180,22 L200,5"/>
-        <path d="M10,68 L30,55 L55,63 L75,40 L100,55 L120,32 L145,45 L165,28 L190,42 L210,18"/>
-        <circle cx="0" cy="50" r="2.5" fill="rgba(148,163,184,0.25)"/><circle cx="45" cy="45" r="2.5" fill="rgba(148,163,184,0.25)"/>
-        <circle cx="90" cy="37" r="2.5" fill="rgba(148,163,184,0.25)"/><circle cx="135" cy="28" r="2.5" fill="rgba(148,163,184,0.25)"/>
-        <circle cx="180" cy="22" r="2.5" fill="rgba(148,163,184,0.25)"/>
+
+      <!-- Panel 3: H-bonds (count fluctuating around a mean) -->
+      <g transform="translate(655,60)">
+        <text class="plabel" x="0" y="-8">H-BONDS</text>
+        <g class="pgrid"><line x1="0" y1="38" x2="210" y2="38"/><line x1="0" y1="76" x2="210" y2="76"/><line x1="0" y1="114" x2="210" y2="114"/></g>
+        <g class="pframe"><line x1="0" y1="0" x2="0" y2="150"/><line x1="0" y1="150" x2="210" y2="150"/></g>
+        <line x1="0" y1="82" x2="210" y2="82" stroke="#f59e0b" stroke-width="1" stroke-dasharray="3 3" opacity="0.5"/>
+        <polyline fill="none" stroke="#f59e0b" stroke-width="2" points="0,86 8,70 16,96 24,74 32,100 40,67 48,90 56,78 64,102 72,72 80,88 88,64 96,98 104,80 112,70 120,96 128,75 136,92 144,67 152,86 160,73 168,100 176,71 184,90 192,65 200,84 210,77"/>
+      </g>
+
+      <!-- Panel 4: PCA (scatter of conformations in PC1/PC2 space) -->
+      <g transform="translate(955,60)">
+        <text class="plabel" x="0" y="-8">PCA</text>
+        <g class="pframe"><line x1="0" y1="0" x2="0" y2="150"/><line x1="0" y1="150" x2="210" y2="150"/></g>
+        <text class="plabel" x="184" y="146" font-size="8" font-weight="400">PC1</text>
+        <text class="plabel" x="6" y="12" font-size="8" font-weight="400">PC2</text>
+        <g fill="#22c55e" opacity="0.7">
+          <circle cx="52" cy="92" r="3.5"/><circle cx="64" cy="104" r="3.5"/><circle cx="70" cy="86" r="3.5"/><circle cx="58" cy="78" r="3.5"/>
+          <circle cx="78" cy="98" r="3.5"/><circle cx="68" cy="112" r="3.5"/><circle cx="46" cy="100" r="3.5"/><circle cx="82" cy="86" r="3.5"/>
+          <circle cx="60" cy="94" r="3.5"/><circle cx="74" cy="106" r="3.5"/>
+        </g>
+        <g fill="#a855f7" opacity="0.7">
+          <circle cx="142" cy="66" r="3.5"/><circle cx="154" cy="78" r="3.5"/><circle cx="160" cy="60" r="3.5"/><circle cx="148" cy="52" r="3.5"/>
+          <circle cx="168" cy="74" r="3.5"/><circle cx="138" cy="72" r="3.5"/><circle cx="172" cy="62" r="3.5"/><circle cx="156" cy="90" r="3.5"/>
+          <circle cx="150" cy="64" r="3.5"/><circle cx="164" cy="82" r="3.5"/>
+        </g>
       </g>
     </svg>
   </div>
   <nav class="hero-nav">
-    <div class="brand"><i>P</i> Post MD</div>
+    <div class="brand">
+      <svg class="logo" viewBox="0 0 32 32" xmlns="http://www.w3.org/2000/svg" aria-label="Post MD logo">
+        <defs>
+          <linearGradient id="pmLogo" x1="0" y1="0" x2="1" y2="1">
+            <stop offset="0" stop-color="#3b82f6"/><stop offset="1" stop-color="#06b6d4"/>
+          </linearGradient>
+        </defs>
+        <rect width="32" height="32" rx="8" fill="url(#pmLogo)"/>
+        <!-- molecule: three atoms + bonds -->
+        <g stroke="#fff" stroke-width="2" stroke-linecap="round" opacity="0.95">
+          <line x1="10.5" y1="13" x2="21.5" y2="10"/>
+          <line x1="21.5" y1="10" x2="16.5" y2="22"/>
+          <line x1="10.5" y1="13" x2="16.5" y2="22"/>
+        </g>
+        <g fill="#fff">
+          <circle cx="10.5" cy="13" r="3.1"/>
+          <circle cx="21.5" cy="10" r="3.1"/>
+        </g>
+        <circle cx="16.5" cy="22" r="3.1" fill="#a5f3fc"/>
+      </svg>
+      Post MD
+    </div>
     <span class="spacer"></span>
-    <span class="ver">v0.1.0-dev</span>
   </nav>
   <div class="hero-body">
     <h1>MD Trajectory Analysis</h1>
