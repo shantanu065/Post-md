@@ -225,13 +225,32 @@ def _draw_running_avg(ax, x_arr: np.ndarray, y_arr: np.ndarray,
 
 
 def _draw_avg_bar(ax_bar, avg_labels: list[str], avg_values: list[float],
-                  bar_colors: list[str], style: PlotStyle) -> None:
+                  bar_colors: list[str], style: PlotStyle, *,
+                  ylabel: str | None = None, xlabel: str | None = None,
+                  ylim: tuple[float, float] | None = None) -> None:
+    """Average-per-system bar panel drawn beside the line plot.
+
+    Inherits the line plot's configuration so the two read consistently:
+    the same y-axis title (``ylabel``) and x-axis title (``xlabel``), and
+    the *same y-scale* (``ylim`` — the line's final limits, which already
+    fold in any user ymin/ymax), so bar heights line up with the curve.
+    """
     x_pos = np.arange(len(avg_labels))
     bars = ax_bar.bar(x_pos, avg_values, color=bar_colors, alpha=0.85, width=0.5)
     ax_bar.set_xticks(x_pos)
     ax_bar.set_xticklabels(avg_labels, rotation=30, ha="right", fontsize=style.font_size - 1)
-    ax_bar.set_ylabel("Average")
+    ax_bar.set_ylabel(ylabel or "Average")
+    if xlabel:
+        ax_bar.set_xlabel(xlabel)
     ax_bar.set_title("Average")
+    if ylim is not None:
+        ax_bar.set_ylim(*ylim)
+    elif style.ymin is not None or style.ymax is not None:
+        cur_lo, cur_hi = ax_bar.get_ylim()
+        ax_bar.set_ylim(
+            style.ymin if style.ymin is not None else cur_lo,
+            style.ymax if style.ymax is not None else cur_hi,
+        )
     for bar, val in zip(bars, avg_values, strict=False):
         ax_bar.text(bar.get_x() + bar.get_width() / 2, bar.get_height(),
                     f"{val:.1f}", ha="center", va="bottom", fontsize=style.font_size - 2)
@@ -282,7 +301,10 @@ def plot_line(
     if style.show_average and y_arr.size:
         lbl = style.legend_label or "System"
         c = style.color or "#1f77b4"
-        _draw_avg_bar(ax_bar, [lbl], [float(np.mean(y_arr))], [c], style)
+        _draw_avg_bar(ax_bar, [lbl], [float(np.mean(y_arr))], [c], style,
+                      ylabel=style.ylabel or default_ylabel,
+                      xlabel=style.xlabel or default_xlabel,
+                      ylim=ax.get_ylim())
 
     _save(fig, output_path, style.dpi)
 
@@ -364,7 +386,10 @@ def plot_lines_multi(
 
     if style.show_average and all_y_parts:
         avgs = [float(np.mean(yp)) for yp in all_y_parts]
-        _draw_avg_bar(ax_bar, list(labels), avgs, resolved_colors, style)
+        _draw_avg_bar(ax_bar, list(labels), avgs, resolved_colors, style,
+                      ylabel=style.ylabel or default_ylabel,
+                      xlabel=style.xlabel or default_xlabel,
+                      ylim=ax.get_ylim())
 
     _save(fig, output_path, style.dpi)
 
