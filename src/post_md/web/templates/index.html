@@ -26,7 +26,7 @@ body{min-height:100%;background:#fff;color:var(--text);font-family:var(--sans);f
 .hero-bg svg{width:100%;height:100%}
 .hero-nav{
   position:relative;display:flex;align-items:center;gap:0.5rem;
-  max-width:1100px;margin:0 auto;padding:0.8rem 2rem;
+  max-width:1600px;margin:0 auto;padding:0.8rem 2rem;
 }
 .hero-nav .brand{
   display:flex;align-items:center;gap:0.5rem;
@@ -38,14 +38,14 @@ body{min-height:100%;background:#fff;color:var(--text);font-family:var(--sans);f
 .hero-nav .spacer{flex:1}
 .hero-nav .ver{font-family:var(--mono);font-size:0.7rem;color:rgba(255,255,255,0.35);border:1px solid rgba(255,255,255,0.1);padding:0.1rem 0.5rem;border-radius:99px}
 .hero-body{
-  position:relative;max-width:1100px;margin:0 auto;
+  position:relative;max-width:1600px;margin:0 auto;
   padding:2.5rem 2rem 2.8rem;
 }
 .hero-body h1{margin:0;font-size:2.8rem;font-weight:800;color:#fff;letter-spacing:-0.03em;line-height:1.1}
 .hero-body p{margin:0.7rem 0 0;color:rgba(255,255,255,0.55);font-size:0.95rem;max-width:600px;line-height:1.5}
 
 /* ── Content ── */
-.content{max-width:1100px;margin:0 auto;padding:0 2rem 4rem}
+.content{max-width:1600px;margin:0 auto;padding:0 2rem 4rem}
 
 /* ── Section ── */
 .section{padding:2rem 0;border-bottom:1px solid var(--border)}
@@ -312,13 +312,31 @@ details>div{margin-top:0.5rem}
   <p class="section-desc">Already have <code>.dat</code> / <code>.xvg</code> / <code>.csv</code> files? Upload one or more and generate a graph directly &mdash; overlay several to compare (e.g. WT vs mutant). First column is X, second is Y.</p>
   <div id="dat-list"></div>
   <button id="btn-add-dat" class="ghost" style="margin-top:0.5rem">+ Add file</button>
-  <details style="margin-top:0.8rem"><summary>Plot customisation</summary><div class="grid-2" style="margin-top:0.6rem">
+  <div class="grid-2" style="margin-top:0.6rem">
+    <label>Plot type<select id="pd-plottype">
+      <option value="line">Line</option>
+      <option value="mmgbsa">MM-GBSA</option>
+    </select></label>
+    <label id="pd-mmgbsa-mode-wrap" style="display:none">MM-GBSA mode<select id="pd-mmgbsa-mode">
+      <option value="auto">Auto-detect</option>
+      <option value="residue">Per-residue ΔG (bars)</option>
+      <option value="frame">Per-frame ΔG_bind (line)</option>
+    </select></label>
+  </div>
+  <details style="margin-top:0.8rem"><summary>Plot customisation</summary><div class="grid-3" style="margin-top:0.6rem">
     <label>Title<input type="text" id="pd-title"></label>
     <label>X-axis<input type="text" id="pd-xlabel" placeholder="Time (ns)"></label>
     <label>Y-axis<input type="text" id="pd-ylabel" placeholder="Value"></label>
+    <label>X min<input type="number" step="any" id="pd-xmin"></label>
+    <label>X max<input type="number" step="any" id="pd-xmax"></label>
+    <label>Y min<input type="number" step="any" id="pd-ymin"></label>
+    <label>Y max<input type="number" step="any" id="pd-ymax"></label>
     <label>Font size<input type="number" id="pd-font" value="12"></label>
     <label>Fig size<input type="text" id="pd-figsize" placeholder="7.5x4.5"></label>
     <label>DPI<input type="number" id="pd-dpi" value="150"></label>
+    <label>Avg window<input type="number" id="pd-window" placeholder="auto"></label>
+    <label><input type="checkbox" id="pd-average"> Show average bar</label>
+    <label><input type="checkbox" id="pd-running"> Running average</label>
     <label><input type="checkbox" id="pd-open"> Open frame</label>
     <label><input type="checkbox" id="pd-nogrid"> Hide grid</label>
   </div></details>
@@ -359,7 +377,14 @@ details>div{margin-top:0.5rem}
       <label>Atom selection<input type="text" name="selection" value="protein" data-tab="rmsf"></label>
       <label>Output<select name="output_ext" data-tab="rmsf"><option value="dat">.dat</option><option value="xvg">.xvg</option><option value="csv">.csv</option></select></label>
       <label><input type="checkbox" name="per_atom" data-tab="rmsf"> Per-atom <small>(default: per-residue)</small></label>
-    </div><details><summary>Plot customisation</summary><div class="grid-3">
+    </div>
+    <div style="margin-top:0.6rem">
+      <label>Regions <small>antigen / antibody / nanobody &mdash; <code>Name:lo-hi:#color</code>, semicolon-separated</small>
+        <input type="text" name="regions" data-tab="rmsf" placeholder="Antigen:1-120:#1f77b4; Nanobody:121-250:#d62728"></label>
+      <label style="margin-top:0.5rem">CDR ranges <small>residue spans to shade, e.g. <code>26-35,50-58,97-110</code></small>
+        <input type="text" name="cdr" data-tab="rmsf" placeholder="26-35,50-58,97-110"></label>
+    </div>
+    <details><summary>Plot customisation</summary><div class="grid-3">
       <label>Title<input type="text" name="title" data-tab="rmsf"></label><label>X-axis<input type="text" name="xlabel" data-tab="rmsf"></label><label>Y-axis<input type="text" name="ylabel" data-tab="rmsf"></label>
       <label>Color<input type="text" name="color" data-tab="rmsf"></label><label>Line width<input type="number" name="linewidth" value="1.6" step="0.1" data-tab="rmsf"></label><label>Legend<input type="text" name="legend_label" data-tab="rmsf"></label>
       <label>X min<input type="number" step="any" name="xmin" data-tab="rmsf"></label><label>X max<input type="number" step="any" name="xmax" data-tab="rmsf"></label><label>Y min<input type="number" step="any" name="ymin" data-tab="rmsf"></label>
@@ -411,6 +436,7 @@ details>div{margin-top:0.5rem}
       <label>X min<input type="number" step="any" name="xmin" data-tab="hbond"></label><label>X max<input type="number" step="any" name="xmax" data-tab="hbond"></label><label>Y min<input type="number" step="any" name="ymin" data-tab="hbond"></label>
       <label>Y max<input type="number" step="any" name="ymax" data-tab="hbond"></label><label>Fig size<input type="text" name="figsize" placeholder="7.5x4.5" data-tab="hbond"></label><label>DPI<input type="number" name="dpi" value="150" data-tab="hbond"></label>
       <label>Font size<input type="number" name="font_size" value="12" data-tab="hbond"></label><label><input type="checkbox" name="no_grid" data-tab="hbond"> Hide grid</label><label><input type="checkbox" name="show_average" data-tab="hbond" checked> Show average</label><label><input type="checkbox" name="open_frame" data-tab="hbond"> Open frame</label><label><input type="checkbox" name="no_plot" data-tab="hbond"> Data only</label>
+      <label><input type="checkbox" name="running_avg" data-tab="hbond" checked> Running average</label><label>Avg window<input type="number" name="running_avg_window" data-tab="hbond" placeholder="auto"></label>
     </div></details></div>
   </div>
   <div class="analysis-block" data-analysis="pca">
@@ -653,6 +679,7 @@ function addDatRow(){
   $('#dat-list').appendChild(row);
 }
 $('#btn-add-dat').onclick=()=>addDatRow();
+$('#pd-plottype').onchange=()=>{$('#pd-mmgbsa-mode-wrap').style.display=$('#pd-plottype').value==='mmgbsa'?'':'none'};
 $('#btn-plot-data').onclick=async()=>{
   const rows=$$('#dat-list .dat-row');
   const fd=new FormData();const labels=[],colors=[];let n=0;
@@ -666,14 +693,21 @@ $('#btn-plot-data').onclick=async()=>{
   }
   if(!n){setPdStatus('Add at least one file.',true);return}
   const opts={};
+  const numOpt=(id,key)=>{const el=$(id);if(el&&el.value!==''){const n=Number(el.value);if(!isNaN(n))opts[key]=n}};
   const tv=$('#pd-title').value.trim();if(tv)opts.title=tv;
   const xv=$('#pd-xlabel').value.trim();if(xv)opts.xlabel=xv;
   const yv=$('#pd-ylabel').value.trim();if(yv)opts.ylabel=yv;
-  const fs=Number($('#pd-font').value);if(!isNaN(fs)&&$('#pd-font').value!=='')opts.font_size=fs;
-  const dp=Number($('#pd-dpi').value);if(!isNaN(dp)&&$('#pd-dpi').value!=='')opts.dpi=dp;
+  numOpt('#pd-font','font_size');
+  numOpt('#pd-dpi','dpi');
+  numOpt('#pd-xmin','xmin');numOpt('#pd-xmax','xmax');
+  numOpt('#pd-ymin','ymin');numOpt('#pd-ymax','ymax');
+  numOpt('#pd-window','running_avg_window');
   const fg=$('#pd-figsize').value.trim();if(fg)opts.figsize=fg;
+  if($('#pd-average').checked)opts.show_average=true;
+  if($('#pd-running').checked)opts.running_avg=true;
   if($('#pd-open').checked)opts.open_frame=true;
   if($('#pd-nogrid').checked)opts.no_grid=true;
+  const ptype=$('#pd-plottype').value;if(ptype&&ptype!=='line'){opts.plot_type=ptype;opts.mmgbsa_mode=$('#pd-mmgbsa-mode').value}
   fd.append('labels',JSON.stringify(labels));fd.append('colors',JSON.stringify(colors));fd.append('opts',JSON.stringify(opts));
   setPdStatus('Generating...');$('#btn-plot-data').disabled=true;
   try{

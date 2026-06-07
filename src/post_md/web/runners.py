@@ -111,7 +111,55 @@ def _build_style(opts: dict, default_figsize=(7.5, 4.5)) -> PlotStyle:
         ymax=_axis_limit(opts, "ymax"),
         open_frame=bool(opts.get("open_frame")),
         show_average=bool(opts.get("show_average")),
+        running_avg=bool(opts.get("running_avg")),
+        running_avg_window=int(_opt(opts, "running_avg_window", 0) or 0),
     )
+
+
+def _parse_regions(spec: str | None) -> list[tuple[str, float, float, str | None]]:
+    """Parse ``"Antigen:1-120:#1f77b4; Nanobody:121-250"`` into
+    ``[(name, lo, hi, color|None), ...]``. Colour is optional. Entries that
+    don't carry a valid ``lo-hi`` span are skipped."""
+    if not spec:
+        return []
+    out: list[tuple[str, float, float, str | None]] = []
+    for chunk in spec.split(";"):
+        chunk = chunk.strip()
+        if not chunk:
+            continue
+        parts = [p.strip() for p in chunk.split(":")]
+        if len(parts) < 2:
+            continue
+        name = parts[0]
+        rng = parts[1]
+        color = parts[2] if len(parts) >= 3 and parts[2] else None
+        if "-" not in rng:
+            continue
+        a, b = rng.split("-", 1)
+        try:
+            lo, hi = float(a), float(b)
+        except ValueError:
+            continue
+        out.append((name, min(lo, hi), max(lo, hi), color))
+    return out
+
+
+def _parse_ranges(spec: str | None) -> list[tuple[float, float]]:
+    """Parse ``"26-35,50-58,97-110"`` into ``[(lo, hi), ...]``."""
+    if not spec:
+        return []
+    out: list[tuple[float, float]] = []
+    for tok in spec.replace(";", ",").split(","):
+        tok = tok.strip()
+        if not tok or "-" not in tok:
+            continue
+        a, b = tok.split("-", 1)
+        try:
+            lo, hi = float(a), float(b)
+        except ValueError:
+            continue
+        out.append((min(lo, hi), max(lo, hi)))
+    return out
 
 
 # ---------------------------------------------------------------------------
@@ -171,6 +219,19 @@ def plot_from_data(
 
     style = _build_style(opts)
     style.show_legend = len(curves) > 1 or bool(style.legend_label)
+
+    # MM-GBSA mode: a dedicated plotter (per-residue ΔG bars or per-frame
+    # binding-energy line). Uses the first uploaded file only.
+    if str(_opt(opts, "plot_type", "") or "").lower() == "mmgbsa":
+        from post_md.plotting import plot_mmgbsa
+        if colors and colors[0]:
+            style.color = colors[0]
+        plot_mmgbsa(
+            curves[0][0], curves[0][1], output_path, style=style,
+            mode=str(_opt(opts, "mmgbsa_mode", "auto") or "auto"),
+            default_title=labels[0] or "MM-GBSA",
+        )
+        return {"plot": output_path.name}
 
     if len(curves) == 1:
         if colors and colors[0]:
@@ -557,7 +618,19 @@ def _run_overlay(name: str, systems: list[dict], workdir: Path, opts: dict) -> d
 
     plot_path = workdir / f"{name}.png"
     style = _build_style(opts)
-    if len(systems) == 1:
+    # Antibody-aware RMSF: colour antigen / antibody / nanobody regions and
+    # shade CDR loops. Only meaningful for a single system's residue axis.
+    rmsf_regions = _parse_regions(_opt(opts, "regions")) if name == "rmsf" else []
+    rmsf_cdrs = _parse_ranges(_opt(opts, "cdr")) if name == "rmsf" else []
+    if name == "rmsf" and len(systems) == 1 and (rmsf_regions or rmsf_cdrs):
+        from post_md.plotting import plot_rmsf_regions
+        plot_rmsf_regions(
+            curves[0][0], curves[0][1], plot_path, style=style,
+            regions=rmsf_regions, cdr_ranges=rmsf_cdrs,
+            default_xlabel=x_label_default, default_ylabel=spec["ylabel"],
+            default_title=spec["default_title"],
+        )
+    elif len(systems) == 1:
         # Honour the per-system colour even for single-curve plots so the
         # legend pill colour matches the line.
         if per_system_colors[0]:

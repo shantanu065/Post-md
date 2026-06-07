@@ -2,10 +2,12 @@
 
 Open-source toolkit for rapid analysis of molecular dynamics trajectories.
 
-- **Pure-Python** — no MDAnalysis / MDTraj dependency
+- **Pure-Python** — trajectory parsers written from scratch, no heavyweight dependencies
 - **AMBER** and **GROMACS** trajectory support
 - **RMSD, RMSF, Rg, SASA, H-bond, PCA, k-means clustering**
 - **Multi-system comparison** — overlay WT vs mutants on one plot
+- **Antibody-aware RMSF** — colour antigen vs antibody/nanobody and mark CDR loops
+- **MMGBSA plotting** — per-residue ΔG hotspots or per-frame binding energy
 - **CLI** and **browser UI**
 
 ## Install

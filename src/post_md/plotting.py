@@ -41,6 +41,11 @@ class PlotStyle:
     cmap: str | None = None
     open_frame: bool = False
     show_average: bool = False
+    # Overlay a prominent moving-average line on top of the raw trace
+    # (used for noisy series such as H-bond counts). ``running_avg_window``
+    # of 0 means "auto" — roughly 1/20th of the series length.
+    running_avg: bool = False
+    running_avg_window: int = 0
 
 
 def _apply_rc(style: PlotStyle) -> None:
@@ -170,6 +175,55 @@ def _finalize_axes(ax, x_arr, y_arr, style: PlotStyle) -> None:
         ax.grid(alpha=0.3)
 
 
+def _resolve_window(n: int, requested: int) -> int:
+    """Odd, in-range moving-average window. 0/auto → ~n/20 (min 5)."""
+    if requested and requested > 1:
+        w = requested
+    else:
+        w = max(5, n // 20)
+    w = min(w, n)
+    if w % 2 == 0:  # keep it odd so the window is centred
+        w += 1
+    return max(1, min(w, n))
+
+
+def _running_average(y: np.ndarray, window: int) -> np.ndarray:
+    """Centred simple moving average; edges shrink the window so the
+    output length matches ``y`` (no NaN padding, no phase shift)."""
+    y = np.asarray(y, dtype=np.float64)
+    n = y.size
+    if n == 0 or window <= 1:
+        return y
+    half = window // 2
+    csum = np.concatenate([[0.0], np.cumsum(y)])
+    out = np.empty(n, dtype=np.float64)
+    for i in range(n):
+        lo = max(0, i - half)
+        hi = min(n, i + half + 1)
+        out[i] = (csum[hi] - csum[lo]) / (hi - lo)
+    return out
+
+
+def _draw_running_avg(ax, x_arr: np.ndarray, y_arr: np.ndarray,
+                      style: PlotStyle, base_color) -> None:
+    """De-emphasise the raw line already drawn and lay a bold moving
+    average over it so the trend reads clearly through the noise."""
+    if not style.running_avg or y_arr.size < 3:
+        return
+    # Dim the most-recently drawn raw line (the one this avg belongs to).
+    if ax.lines:
+        ax.lines[-1].set_alpha(0.30)
+    win = _resolve_window(y_arr.size, style.running_avg_window)
+    avg = _running_average(y_arr, win)
+    avg_color = base_color or style.color or "#d62728"
+    ax.plot(
+        x_arr, avg,
+        linewidth=max(style.linewidth + 1.6, 2.6),
+        color=avg_color, solid_capstyle="round",
+        label=f"running avg (w={win})",
+    )
+
+
 def _draw_avg_bar(ax_bar, avg_labels: list[str], avg_values: list[float],
                   bar_colors: list[str], style: PlotStyle) -> None:
     x_pos = np.arange(len(avg_labels))
@@ -214,6 +268,7 @@ def plot_line(
         color=style.color,
         label=style.legend_label,
     )
+    _draw_running_avg(ax, x_arr, y_arr, style, style.color)
     ax.margins(x=0, y=0)
     ax.set_xlabel(style.xlabel or default_xlabel)
     ax.set_ylabel(style.ylabel or default_ylabel)
@@ -221,7 +276,7 @@ def plot_line(
 
     _finalize_axes(ax, x_arr, y_arr, style)
 
-    if style.show_legend or style.legend_label:
+    if style.show_legend or style.legend_label or style.running_avg:
         ax.legend(loc="best", frameon=not style.open_frame)
 
     if style.show_average and y_arr.size:
@@ -274,12 +329,23 @@ def plot_lines_multi(
         color = per_curve if per_curve else (
             palette(i % palette.N) if palette.N else None
         )
-        ax.plot(
-            cx_arr, cy_arr,
-            linewidth=style.linewidth,
-            color=color,
-            label=label,
-        )
+        if style.running_avg and cy_arr.size >= 3:
+            # Faint raw trace + bold moving average carrying the legend label,
+            # so an N-system overlay stays readable instead of doubling lines.
+            ax.plot(cx_arr, cy_arr, linewidth=style.linewidth, color=color, alpha=0.30)
+            win = _resolve_window(cy_arr.size, style.running_avg_window)
+            ax.plot(
+                cx_arr, _running_average(cy_arr, win),
+                linewidth=max(style.linewidth + 1.4, 2.4),
+                color=color, solid_capstyle="round", label=label,
+            )
+        else:
+            ax.plot(
+                cx_arr, cy_arr,
+                linewidth=style.linewidth,
+                color=color,
+                label=label,
+            )
         all_y_parts.append(cy_arr)
         resolved_colors.append(color if isinstance(color, str) else f"C{i}")
         x_min = min(x_min, float(cx_arr.min()))
@@ -434,4 +500,140 @@ def plot_clusters(
         ax.grid(alpha=0.3)
     if style.open_frame:
         _apply_open_frame(ax)
+    _save(fig, output_path, style.dpi)
+
+
+def plot_rmsf_regions(
+    x: np.ndarray,
+    y: np.ndarray,
+    output_path: str | Path,
+    style: PlotStyle | None = None,
+    *,
+    regions: list[tuple[str, float, float, str | None]] | None = None,
+    cdr_ranges: list[tuple[float, float]] | None = None,
+    default_xlabel: str = "Residue",
+    default_ylabel: str = "RMSF (Å)",
+    default_title: str = "RMSF",
+) -> None:
+    """RMSF line coloured per region (antigen / antibody / nanobody …) with
+    CDR loops shaded as labelled bands.
+
+    ``regions`` is a list of ``(name, lo, hi, color|None)`` residue spans;
+    ``cdr_ranges`` a list of ``(lo, hi)`` spans drawn as amber bands. Any
+    residue not covered by a region is drawn in a neutral grey so the trace
+    stays continuous.
+    """
+    style = style or PlotStyle()
+    _apply_rc(style)
+    regions = regions or []
+    cdr_ranges = cdr_ranges or []
+
+    x_arr = np.asarray(x, dtype=np.float64)
+    y_arr = np.asarray(y, dtype=np.float64)
+
+    fig, ax = plt.subplots(figsize=style.figsize)
+
+    # Neutral base trace for continuity across uncovered residues.
+    ax.plot(x_arr, y_arr, linewidth=style.linewidth, color="#b0b4bd", zorder=1)
+
+    palette = plt.get_cmap("tab10")
+    for i, (name, lo, hi, color) in enumerate(regions):
+        mask = (x_arr >= lo) & (x_arr <= hi)
+        if not mask.any():
+            continue
+        c = color or palette(i % palette.N)
+        ax.plot(
+            x_arr[mask], y_arr[mask],
+            linewidth=style.linewidth + 0.8, color=c, label=name, zorder=3,
+        )
+
+    # CDR bands behind the lines.
+    for j, (lo, hi) in enumerate(cdr_ranges):
+        ax.axvspan(lo - 0.5, hi + 0.5, color="#f59e0b", alpha=0.16, zorder=0,
+                   label="CDR" if j == 0 else None)
+
+    ax.margins(x=0, y=0)
+    ax.set_xlabel(style.xlabel or default_xlabel)
+    ax.set_ylabel(style.ylabel or default_ylabel)
+    ax.set_title(style.title or default_title)
+    _finalize_axes(ax, x_arr, y_arr, style)
+    if regions or cdr_ranges:
+        ax.legend(loc="best", frameon=not style.open_frame)
+    _save(fig, output_path, style.dpi)
+
+
+def plot_mmgbsa(
+    x: np.ndarray,
+    y: np.ndarray,
+    output_path: str | Path,
+    style: PlotStyle | None = None,
+    *,
+    mode: str = "auto",
+    default_xlabel: str | None = None,
+    default_ylabel: str = "ΔG (kcal/mol)",
+    default_title: str = "MM-GBSA",
+) -> None:
+    """Plot MM-GBSA energies.
+
+    ``mode``:
+      * ``"residue"`` — per-residue decomposition as a bar chart; favourable
+        (ΔG < 0) bars are green, unfavourable (ΔG > 0) red, and the strongest
+        contributors are annotated.
+      * ``"frame"`` — per-frame ΔG_bind time series with a prominent running
+        average.
+      * ``"auto"`` — residue bars for short series (≤ 80 points), else a
+        per-frame line.
+    """
+    style = style or PlotStyle()
+    _apply_rc(style)
+
+    x_arr = np.asarray(x, dtype=np.float64)
+    y_arr = np.asarray(y, dtype=np.float64)
+
+    resolved = mode
+    if resolved not in ("residue", "frame"):
+        resolved = "residue" if y_arr.size <= 80 else "frame"
+
+    fig, ax = plt.subplots(figsize=style.figsize)
+
+    if resolved == "residue":
+        fav = style.color or "#2ca02c"
+        unfav = style.accent_color or "#d62728"
+        bar_colors = [fav if v <= 0 else unfav for v in y_arr]
+        ax.bar(x_arr, y_arr, color=bar_colors, width=0.8, alpha=0.9)
+        ax.axhline(0, color="#444", linewidth=0.9)
+        # Annotate the strongest favourable contributors (most negative).
+        if y_arr.size:
+            order = np.argsort(y_arr)  # most negative first
+            for k in order[: min(3, y_arr.size)]:
+                if y_arr[k] >= 0:
+                    break
+                ax.annotate(f"{int(x_arr[k])}", (x_arr[k], y_arr[k]),
+                            textcoords="offset points", xytext=(0, -10),
+                            ha="center", fontsize=style.font_size - 2, color=fav)
+        ax.set_xlabel(style.xlabel or default_xlabel or "Residue")
+        ax.set_ylabel(style.ylabel or default_ylabel)
+        ax.set_title(style.title or f"{default_title} per-residue decomposition")
+        if style.grid:
+            ax.grid(axis="y", alpha=0.3)
+        if style.open_frame:
+            _apply_open_frame(ax)
+        _apply_axis_limits(ax, style)
+    else:  # frame
+        ax.plot(x_arr, y_arr, linewidth=style.linewidth,
+                color=style.color or "#1f77b4", label="ΔG_bind")
+        # Force a prominent running average regardless of the style flag —
+        # it's the whole point of the per-frame view.
+        forced = style
+        if not forced.running_avg:
+            from dataclasses import replace
+            forced = replace(style, running_avg=True)
+        _draw_running_avg(ax, x_arr, y_arr, forced, style.accent_color)
+        ax.margins(x=0, y=0)
+        ax.set_xlabel(style.xlabel or default_xlabel or "Frame")
+        ax.set_ylabel(style.ylabel or default_ylabel)
+        ax.set_title(style.title or f"{default_title} binding energy")
+        _finalize_axes(ax, x_arr, y_arr, style)
+        ax.legend(loc="best", frameon=not style.open_frame)
+
     _save(fig, output_path, style.dpi)
